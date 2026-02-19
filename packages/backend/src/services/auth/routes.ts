@@ -2,18 +2,90 @@
  * Auth Routes
  */
 
-import { Router } from 'express';
+import crypto from 'crypto';
+import { Router, Request, Response, NextFunction } from 'express';
 import { authService } from './auth-service.js';
 import type { DemoLoginRequest } from './types.js';
 import { prisma } from '../../config/database.js';
+import {
+  isGateEnabled,
+  verifyGateCredentials,
+  verifyGateToken,
+  getGateCookieOpts,
+  GATE_COOKIE,
+} from './gate.js';
+
+function createGateToken(): string {
+  const secret = process.env.SESSION_SECRET ?? 'fallback';
+  const payload = JSON.stringify({ t: Date.now() });
+  const payloadB64 = Buffer.from(payload, 'utf8').toString('base64url');
+  const sig = crypto.createHmac('sha256', secret).update(payloadB64).digest('base64url');
+  return `${payloadB64}.${sig}`;
+}
 
 const router = Router();
 
+function getGateToken(req: Request): string | undefined {
+  const v = req.cookies?.[GATE_COOKIE];
+  if (typeof v === 'string') return v;
+  return undefined;
+}
+
+/** Require gate auth for demo login and user lists. Skip if gate is disabled. */
+function requireGate(req: Request, res: Response, next: NextFunction): void {
+  if (!isGateEnabled()) return next();
+  const token = getGateToken(req);
+  if (verifyGateToken(token)) return next();
+  res.status(401).json({ error: 'Access denied. Please log in first.', gateRequired: true });
+}
+
+/**
+ * GET /api/auth/gate-status
+ * Check if gate is enabled and if client has passed it.
+ */
+router.get('/gate-status', (req, res) => {
+  try {
+    const token = getGateToken(req);
+    res.json({
+      gateEnabled: isGateEnabled(),
+      authenticated: !isGateEnabled() || verifyGateToken(token),
+    });
+  } catch (err) {
+    console.error('Gate-status error:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * POST /api/auth/gate-login
+ * Login with username/password to pass the gate. Sets cookie on success.
+ */
+router.post('/gate-login', (req, res) => {
+  const { username = '', password = '' } = (req.body as { username?: string; password?: string }) ?? {};
+  if (!verifyGateCredentials(String(username), String(password))) {
+    res.status(401).json({ error: 'Invalid username or password' });
+    return;
+  }
+  const token = createGateToken();
+  res.cookie(GATE_COOKIE, token, getGateCookieOpts());
+  res.json({ success: true });
+});
+
+/**
+ * POST /api/auth/gate-logout
+ * Clear gate cookie (e.g. when user wants to re-enter credentials).
+ */
+router.post('/gate-logout', (req, res) => {
+  res.clearCookie(GATE_COOKIE);
+  res.json({ success: true });
+});
+
 /**
  * POST /api/auth/demo-login
- * Demo login endpoint
+ * Demo login endpoint (requires gate if enabled)
  */
-router.post('/demo-login', async (req, res) => {
+router.post('/demo-login', requireGate, async (req, res) => {
   try {
     const request = req.body as DemoLoginRequest;
 
@@ -98,8 +170,9 @@ const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'BOD'];
 /**
  * GET /api/auth/users/internal
  * Get list of internal users (for demo login dropdown), ordered by role then store.
+ * Requires gate if enabled.
  */
-router.get('/users/internal', async (_req, res) => {
+router.get('/users/internal', requireGate, async (_req, res) => {
   try {
     const users = await prisma.internalUser.findMany({
       where: { active: true },
@@ -153,8 +226,9 @@ const VENDOR_ROLE_ORDER = ['S1', 'S2', 'S3'];
 /**
  * GET /api/auth/users/vendor
  * Get list of vendor users (for demo login dropdown), ordered by role.
+ * Requires gate if enabled.
  */
-router.get('/users/vendor', async (_req, res) => {
+router.get('/users/vendor', requireGate, async (_req, res) => {
   try {
     const users = await prisma.vendorUser.findMany({
       where: { active: true },

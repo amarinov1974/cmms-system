@@ -6,6 +6,10 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   SESSION_SECRET: z.string().min(1),
   QR_EXPIRATION_MINUTES: z.coerce.number().default(5),
+  /** Optional: if set, entry screen requires this username before demo login */
+  GATE_USERNAME: z.string().optional(),
+  /** Optional: if set with GATE_USERNAME, entry screen requires this password */
+  GATE_PASSWORD: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

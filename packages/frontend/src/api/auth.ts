@@ -30,6 +30,11 @@ export interface DemoLoginResponse {
   error?: string;
 }
 
+export interface GateStatusResponse {
+  gateEnabled: boolean;
+  authenticated: boolean;
+}
+
 export interface SessionResponse {
   session: {
     userId: number;
@@ -47,6 +52,23 @@ export interface SessionResponse {
 }
 
 export const authAPI = {
+  getGateStatus: async (): Promise<GateStatusResponse> => {
+    const { data } = await apiClient.get<GateStatusResponse>('/auth/gate-status');
+    return data;
+  },
+
+  gateLogin: async (username: string, password: string): Promise<{ success: boolean }> => {
+    const { data } = await apiClient.post<{ success: boolean }>('/auth/gate-login', {
+      username,
+      password,
+    });
+    return data;
+  },
+
+  gateLogout: async (): Promise<void> => {
+    await apiClient.post('/auth/gate-logout');
+  },
+
   demoLogin: async (request: DemoLoginRequest): Promise<DemoLoginResponse> => {
     const { data } = await apiClient.post<DemoLoginResponse>(
       '/auth/demo-login',
