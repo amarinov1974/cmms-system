@@ -27,8 +27,8 @@ router.post('/demo-login', async (req, res) => {
     if (result.success && result.sessionId) {
       res.cookie('cmms_session', result.sessionId, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: true,
+        sameSite: 'none',
         maxAge: 10 * 60 * 1000, // 10 minutes
       });
 
