@@ -213,7 +213,8 @@ You can now log in with the seeded users on the frontend.
 | **CORS errors in browser** | Backend **Variables**: **FRONTEND_URL** must equal the frontend’s full origin (e.g. `https://cmms-frontend-production-xxx.up.railway.app`). Then redeploy backend. |
 | **401 / session / login fails** | Backend and frontend must both use **HTTPS** in production. Ensure **SESSION_SECRET** is set on the backend. |
 | **Database connection error** | Backend **Variables**: **DATABASE_URL** must be the **reference** to the Postgres service’s **DATABASE_URL**, or the exact connection string Railway shows for that Postgres. |
-| **Blank page or 404 on refresh** | Frontend start command must include **`-s`** for `serve` (SPA fallback): `npx serve -s dist -l $PORT`. |
+| **502 Bad Gateway (frontend)** | Frontend must listen on **0.0.0.0** so Railway’s proxy can reach it. Start command: `npx serve -s dist -l tcp://0.0.0.0:$PORT`. Also ensure **Root Directory** is `packages/frontend` so `dist` exists at runtime. Check **Deploy Logs** (not Build Logs) for crashes or “address in use”. |
+| **Blank page or 404 on refresh** | Frontend start command must include **`-s`** for `serve` (SPA fallback). Use `npx serve -s dist -l tcp://0.0.0.0:$PORT`. |
 
 ---
 
