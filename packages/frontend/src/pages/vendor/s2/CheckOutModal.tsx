@@ -4,10 +4,11 @@
  * Saves form state as draft when closing without submit.
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { workOrdersAPI, type WorkReportRow } from '../../../api/work-orders';
 import { Button } from '../../../components/shared';
+import { QrScannerModal } from '../../../components/QrScannerModal';
 import { getS2WODraft, setS2WODraft } from './s2Draft';
 
 interface CheckOutModalProps {
@@ -26,6 +27,7 @@ export function CheckOutModal({
   const queryClient = useQueryClient();
   const draft = getS2WODraft(workOrderId);
   const [qrToken, setQrToken] = useState(draft?.qrToken ?? '');
+  const [showScanner, setShowScanner] = useState(false);
   const [outcome, setOutcome] = useState<
     'FIXED' | 'FOLLOW_UP' | 'NEW_WO_NEEDED' | 'UNSUCCESSFUL'
   >(draft?.outcome ?? 'FIXED');
@@ -126,15 +128,36 @@ export function CheckOutModal({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               QR Code Token * (scan or paste)
             </label>
-            <input
-              type="text"
-              value={qrToken}
-              onChange={(e) => setQrToken(e.target.value)}
-              placeholder="Scan checkout QR or paste token from store..."
-              className="w-full p-3 border border-gray-300 rounded-lg"
-            />
-            <p className="text-xs text-gray-500 mt-1">You can scan the QR at the store or paste the token the store sent you.</p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={qrToken}
+                onChange={(e) => setQrToken(e.target.value)}
+                placeholder="Scan checkout QR or paste token..."
+                className="flex-1 min-w-0 p-3 border border-gray-300 rounded-lg"
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowScanner(true)}
+                title="Open camera to scan QR on store's phone"
+              >
+                Scan
+              </Button>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Scan the QR on the store&apos;s phone or paste the token.</p>
           </div>
+
+          {showScanner && (
+            <QrScannerModal
+              title="Scan Check-Out QR"
+              onScan={(token) => {
+                setQrToken(token);
+                setShowScanner(false);
+              }}
+              onClose={() => setShowScanner(false)}
+            />
+          )}
 
           {checkOutMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
