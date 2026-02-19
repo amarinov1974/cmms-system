@@ -2,7 +2,7 @@
  * Auth API
  */
 
-import { apiClient } from './client';
+import { apiClient, SESSION_STORAGE_KEY } from './client';
 
 export interface DemoLoginRequest {
   userType: 'INTERNAL' | 'VENDOR';
@@ -62,6 +62,9 @@ export const authAPI = {
 
   logout: async (): Promise<void> => {
     await apiClient.post('/auth/logout');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(SESSION_STORAGE_KEY);
+    }
   },
 
   getInternalUsers: async () => {

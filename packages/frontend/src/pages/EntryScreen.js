@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI } from '../api/auth';
-import { apiClient } from '../api/client';
+import { apiClient, SESSION_STORAGE_KEY } from '../api/client';
 const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'BOD'];
 function sortInternalUsers(users) {
     return [...users].sort((a, b) => {
@@ -66,6 +66,9 @@ export function EntryScreen() {
         onSuccess: async (data, variables) => {
             if (!data.success || !data.user)
                 return;
+            if (data.sessionId && typeof window !== 'undefined') {
+                localStorage.setItem(SESSION_STORAGE_KEY, data.sessionId);
+            }
             const user = data.user;
             const userType = variables.userType;
             const role = String(user.role ?? '').trim();

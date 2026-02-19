@@ -44,16 +44,15 @@ router.post('/demo-login', async (req, res) => {
 
 /**
  * POST /api/auth/logout
- * Logout endpoint
+ * Logout endpoint (supports cookie or x-session-id header for iOS/Safari)
  */
 router.post('/logout', (req, res) => {
-  const sessionId = req.cookies?.cmms_session;
-
-  if (sessionId) {
-    authService.logout(sessionId);
-    res.clearCookie('cmms_session');
+  let sessionId = req.cookies?.cmms_session ?? req.headers['x-session-id'];
+  if (Array.isArray(sessionId)) sessionId = sessionId[0];
+  if (typeof sessionId === 'string' && sessionId.trim()) {
+    authService.logout(sessionId.trim());
   }
-
+  res.clearCookie('cmms_session');
   res.json({ success: true });
 });
 

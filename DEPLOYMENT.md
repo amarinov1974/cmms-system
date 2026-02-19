@@ -213,7 +213,7 @@ You can now log in with the seeded users on the frontend.
 | **CORS errors in browser** | Backend **Variables**: **FRONTEND_URL** must equal the frontend’s full origin (e.g. `https://cmms-frontend-production-xxx.up.railway.app`). Then redeploy backend. |
 | **401 / session / login fails** | Backend and frontend must both use **HTTPS** in production. Ensure **SESSION_SECRET** is set on the backend. |
 | **Database connection error** | Backend **Variables**: **DATABASE_URL** must be the **reference** to the Postgres service’s **DATABASE_URL**, or the exact connection string Railway shows for that Postgres. |
-| **502 Bad Gateway (frontend)** | Frontend must listen on **0.0.0.0** so Railway’s proxy can reach it. Start command: `npx serve -s dist -l tcp://0.0.0.0:$PORT`. Also ensure **Root Directory** is `packages/frontend` so `dist` exists at runtime. Check **Deploy Logs** (not Build Logs) for crashes or “address in use”. |
+| **502 / Application failed to respond (frontend)** | 1) **Root Directory** must be `packages/frontend` (Settings) so the `dist` folder exists when the app runs. 2) **Start Command**: set to `npm run start` (or `serve -s dist -l tcp://0.0.0.0:$PORT`). 3) Open **Deploy Logs** (not Build Logs) and see if the process starts and on which port, or if it exits immediately. 4) Under **Networking**, if you had to enter a port for “Generate Domain”, use the same port Railway sets as `PORT` (often 3000); if unsure, remove the custom domain and generate again so Railway auto-detects the port. |
 | **Blank page or 404 on refresh** | Frontend start command must include **`-s`** for `serve` (SPA fallback). Use `npx serve -s dist -l tcp://0.0.0.0:$PORT`. |
 
 ---

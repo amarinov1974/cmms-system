@@ -1,7 +1,7 @@
 /**
  * Auth API
  */
-import { apiClient } from './client';
+import { apiClient, SESSION_STORAGE_KEY } from './client';
 export const authAPI = {
     demoLogin: async (request) => {
         const { data } = await apiClient.post('/auth/demo-login', request);
@@ -13,6 +13,9 @@ export const authAPI = {
     },
     logout: async () => {
         await apiClient.post('/auth/logout');
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem(SESSION_STORAGE_KEY);
+        }
     },
     getInternalUsers: async () => {
         const { data } = await apiClient.get('/auth/users/internal');
