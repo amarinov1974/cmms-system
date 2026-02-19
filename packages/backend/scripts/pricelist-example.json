@@ -1,0 +1,9 @@
+[
+  { "category": "Labor", "description": "Service Hours", "unit": "hour", "pricePerUnit": 45 },
+  { "category": "Labor", "description": "Emergency Call-out", "unit": "hour", "pricePerUnit": 75 },
+  { "category": "Fixed Fees", "description": "Arrival on Site", "unit": "visit", "pricePerUnit": 30 },
+  { "category": "HVAC Parts", "description": "Air Filter", "unit": "piece", "pricePerUnit": 25 },
+  { "category": "HVAC Parts", "description": "Refrigerant R410A", "unit": "kg", "pricePerUnit": 120 },
+  { "category": "Electrical Parts", "description": "Circuit Breaker", "unit": "piece", "pricePerUnit": 15 },
+  { "category": "Plumbing", "description": "Pipe Connector", "unit": "piece", "pricePerUnit": 8 }
+]

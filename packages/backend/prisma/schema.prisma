@@ -1,0 +1,559 @@
+// CMMS Database Schema
+// DO NOT MODIFY ENUM VALUES - THEY MATCH FUNCTIONAL SPEC EXACTLY
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// CORE ORGANIZATION ENTITIES
+// ============================================================================
+
+model Company {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  regions       Region[]
+  stores        Store[]
+  internalUsers InternalUser[]
+  tickets       Ticket[]
+
+  @@map("companies")
+}
+
+model VendorCompany {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(255)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vendorUsers   VendorUser[]
+  priceList     VendorPriceListItem[]
+  workOrders    WorkOrder[]
+  invoiceBatches InvoiceBatch[]
+
+  @@map("vendor_companies")
+}
+
+model Region {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  name      String   @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  stores        Store[]
+  internalUsers InternalUser[]
+
+  @@index([companyId])
+  @@map("regions")
+}
+
+model Store {
+  id        Int      @id @default(autoincrement())
+  companyId Int      @map("company_id")
+  regionId  Int      @map("region_id")
+  name      String   @db.VarChar(255)
+  address   String?  @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  company       Company        @relation(fields: [companyId], references: [id])
+  region        Region         @relation(fields: [regionId], references: [id])
+  tickets       Ticket[]
+  assets        Asset[]
+  internalUsers InternalUser[]
+
+  @@index([companyId])
+  @@index([regionId])
+  @@map("stores")
+}
+
+// ============================================================================
+// USER ENTITIES
+// ============================================================================
+
+enum InternalRole {
+  SM  // Store Manager
+  AM  // Area Manager
+  AMM // Area Maintenance Manager
+  D   // Sales Director
+  C2  // Maintenance Director
+  BOD // Board of Directors
+}
+
+model InternalUser {
+  id        Int          @id @default(autoincrement())
+  name      String       @db.VarChar(255)
+  role      InternalRole
+  companyId Int          @map("company_id")
+  regionId  Int?         @map("region_id")
+  storeId   Int?         @map("store_id")
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+  region  Region?  @relation(fields: [regionId], references: [id])
+  store   Store?   @relation(fields: [storeId], references: [id])
+
+  // Ownership relationships
+  ownedTickets    Ticket[]         @relation("TicketOwner")
+  createdTickets  Ticket[]         @relation("TicketCreator")
+  ticketsClarificationRequested Ticket[] @relation("ClarificationRequestedBy")
+  approvalRecords ApprovalRecord[]
+  ticketComments  TicketComment[]
+
+  @@index([companyId])
+  @@index([role])
+  @@map("internal_users")
+}
+
+enum VendorRole {
+  S1 // Service Admin
+  S2 // Technician
+  S3 // Finance / Backoffice
+}
+
+model VendorUser {
+  id               Int        @id @default(autoincrement())
+  name             String     @db.VarChar(255)
+  role             VendorRole
+  vendorCompanyId  Int        @map("vendor_company_id")
+  active           Boolean    @default(true)
+  createdAt        DateTime   @default(now()) @map("created_at")
+
+  vendorCompany     VendorCompany @relation(fields: [vendorCompanyId], references: [id])
+  workOrders        WorkOrder[]   @relation("WorkOrderTechnician")
+  invoiceBatchesCreated InvoiceBatch[]
+
+  @@index([vendorCompanyId])
+  @@index([role])
+  @@map("vendor_users")
+}
+
+// ============================================================================
+// ASSET ENTITY
+// ============================================================================
+
+model Asset {
+  id          Int      @id @default(autoincrement())
+  storeId     Int      @map("store_id")
+  description String   @db.Text
+  category    String?  @db.VarChar(255)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  store      Store        @relation(fields: [storeId], references: [id])
+  tickets    Ticket[]
+  workOrders WorkOrder[]
+
+  @@index([storeId])
+  @@map("assets")
+}
+
+// ============================================================================
+// TICKET ENTITY & RELATED
+// ============================================================================
+
+enum TicketCategory {
+  ELECTRICAL_INSTALLATIONS             @map("Electrical Installations")
+  HEATING_VENTILATION_AIR_CONDITIONING @map("Heating, Ventilation and Air Conditioning")
+  REFRIGERATION                        @map("Refrigeration")
+  KITCHEN_EQUIPMENT                    @map("Kitchen Equipment")
+  ELEVATORS                            @map("Elevators")
+  AUTOMATIC_DOORS                      @map("Automatic Doors")
+  FIRE_PROTECTION_SYSTEM               @map("Fire Protection System")
+  WATER_AND_SEWAGE                     @map("Water and Sewage")
+  CONSTRUCTION_WORKS                   @map("Construction Works")
+  HYGIENE                              @map("Hygiene")
+  ENVIRONMENTAL                        @map("Environmental")
+  OTHER                                @map("Other")
+}
+
+enum TicketStatus {
+  DRAFT                            @map("Draft")
+  SUBMITTED                        @map("Ticket Submitted")
+  AWAITING_CREATOR_RESPONSE        @map("Awaiting Ticket Creator Response")
+  UPDATED_SUBMITTED                @map("Updated Ticket Submitted")
+  COST_ESTIMATION_NEEDED           @map("Cost Estimation Needed")
+  COST_ESTIMATION_APPROVAL_NEEDED  @map("Cost Estimation Approval Needed")
+  COST_ESTIMATION_APPROVED         @map("Ticket Cost Estimation Approved")
+  WORK_ORDER_IN_PROGRESS           @map("Work Order In Progress")
+  REJECTED                         @map("Ticket Rejected")
+  WITHDRAWN                        @map("Ticket Withdrawn")
+  ARCHIVED                         @map("Ticket Archived")
+}
+
+model Ticket {
+  id                 Int            @id @default(autoincrement())
+  companyId          Int            @map("company_id")
+  storeId            Int            @map("store_id")
+  createdByUserId    Int            @map("created_by_user_id")
+  category           TicketCategory
+  description        String         @db.Text
+  originalDescription String?       @db.Text @map("original_description") // First description at create, never updated
+  urgent             Boolean
+  currentStatus      TicketStatus   @map("current_status")
+  currentOwnerUserId Int?           @map("current_owner_user_id") // Nullable for System ownership
+  clarificationRequestedByUserId Int? @map("clarification_requested_by_user_id") // Who requested clarification; when creator submits update, ticket goes back to this user
+  assetId            Int?           @map("asset_id")
+  archived           Boolean        @default(false)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  store        Store         @relation(fields: [storeId], references: [id])
+  createdBy    InternalUser  @relation("TicketCreator", fields: [createdByUserId], references: [id])
+  currentOwner InternalUser? @relation("TicketOwner", fields: [currentOwnerUserId], references: [id])
+  clarificationRequestedBy InternalUser? @relation("ClarificationRequestedBy", fields: [clarificationRequestedByUserId], references: [id])
+  asset        Asset?        @relation(fields: [assetId], references: [id])
+
+  comments         TicketComment[]
+  attachments      Attachment[]     @relation("TicketAttachments")
+  workOrders       WorkOrder[]
+  costEstimation   CostEstimation?
+  approvalRecords  ApprovalRecord[]
+  auditLogs        AuditLog[]       @relation("TicketAuditLogs")
+
+  @@index([companyId])
+  @@index([storeId])
+  @@index([currentStatus])
+  @@index([currentOwnerUserId])
+  @@index([currentOwnerUserId, currentStatus]) // Critical for dashboard queries
+  @@index([createdByUserId])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id           Int      @id @default(autoincrement())
+  ticketId     Int      @map("ticket_id")
+  authorUserId Int      @map("author_user_id")
+  text         String   @db.Text
+  internalFlag Boolean  @default(true) @map("internal_flag")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  ticket Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author InternalUser @relation(fields: [authorUserId], references: [id])
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
+model CostEstimation {
+  ticketId        Int      @id @map("ticket_id")
+  estimatedAmount Decimal  @db.Decimal(12, 2) @map("estimated_amount")
+  createdByUserId Int      @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@map("cost_estimations")
+}
+
+enum ApprovalDecision {
+  APPROVED
+  RETURNED
+  REJECTED
+}
+
+model ApprovalRecord {
+  id             Int              @id @default(autoincrement())
+  ticketId       Int              @map("ticket_id")
+  approverUserId Int              @map("approver_user_id")
+  role           InternalRole
+  decision       ApprovalDecision
+  comment        String?          @db.Text
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  ticket   Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  approver InternalUser @relation(fields: [approverUserId], references: [id])
+
+  @@index([ticketId])
+  @@index([ticketId, createdAt]) // For sequential chain reconstruction
+  @@map("approval_records")
+}
+
+// ============================================================================
+// WORK ORDER ENTITY & RELATED
+// ============================================================================
+
+enum WorkOrderStatus {
+  CREATED                      @map("Work Order Created")
+  ACCEPTED_TECHNICIAN_ASSIGNED @map("Accepted / Technician Assigned")
+  SERVICE_IN_PROGRESS          @map("Service In Progress")
+  SERVICE_COMPLETED            @map("Service Completed")
+  FOLLOW_UP_REQUESTED         @map("Follow-Up Visit Requested")
+  NEW_WO_NEEDED               @map("New Work Order Needed")
+  REPAIR_UNSUCCESSFUL          @map("Repair Unsuccessful")
+  COST_PROPOSAL_PREPARED      @map("Cost Proposal Prepared")
+  COST_REVISION_REQUESTED     @map("Cost Revision Requested")
+  COST_PROPOSAL_APPROVED      @map("Cost Proposal Approved")
+  CLOSED_WITHOUT_COST         @map("Closed Without Cost")
+  REJECTED                    @map("Work Order Rejected")
+}
+
+enum OwnerType {
+  INTERNAL
+  VENDOR
+}
+
+model WorkOrder {
+  id                    Int              @id @default(autoincrement())
+  ticketId              Int              @map("ticket_id")
+  vendorCompanyId       Int              @map("vendor_company_id")
+  assignedTechnicianId  Int?             @map("assigned_technician_id")
+  assetId               Int?             @map("asset_id")
+  eta                   DateTime?
+  currentStatus         WorkOrderStatus  @map("current_status")
+  currentOwnerType      OwnerType        @map("current_owner_type")
+  currentOwnerId        Int              @map("current_owner_id") // Polymorphic: InternalUser.id or VendorUser.id
+  declaredTechCount     Int?             @map("declared_tech_count")
+  checkinTs             DateTime?        @map("checkin_ts")
+  checkoutTs            DateTime?        @map("checkout_ts")
+  archived              Boolean          @default(false)
+  openedAt              DateTime?        @map("opened_at")   // S1 read acknowledgment
+  commentToVendor       String?           @db.Text @map("comment_to_vendor") // AMM comment when creating WO
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  ticket             Ticket         @relation(fields: [ticketId], references: [id])
+  vendorCompany      VendorCompany  @relation(fields: [vendorCompanyId], references: [id])
+  assignedTechnician VendorUser?    @relation("WorkOrderTechnician", fields: [assignedTechnicianId], references: [id])
+  asset              Asset?         @relation(fields: [assetId], references: [id])
+
+  invoiceBatchId  Int?             @map("invoice_batch_id")
+
+  workReportRows   WorkReportRow[]
+  invoiceRows     InvoiceRow[]
+  comments        WOComment[]
+  attachments     Attachment[]    @relation("WorkOrderAttachments")
+  qrRecords       QRRecord[]
+  auditLogs       AuditLog[]     @relation("WorkOrderAuditLogs")
+  invoiceBatch     InvoiceBatch?      @relation("WorkOrderBatch", fields: [invoiceBatchId], references: [id])
+  invoiceBatchItem InvoiceBatchItem?
+  visits          WorkOrderVisit[]
+
+  @@index([ticketId])
+  @@index([vendorCompanyId])
+  @@index([assignedTechnicianId])
+  @@index([currentStatus])
+  @@index([currentOwnerType, currentOwnerId])
+  @@index([currentOwnerType, currentOwnerId, currentStatus]) // Critical for vendor dashboards
+  @@index([invoiceBatchId])
+  @@map("work_orders")
+}
+
+model WorkOrderVisit {
+  id          Int       @id @default(autoincrement())
+  workOrderId Int       @map("work_order_id")
+  checkinTs   DateTime  @map("checkin_ts")
+  checkoutTs  DateTime? @map("checkout_ts")
+
+  workOrder WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([workOrderId])
+  @@map("work_order_visits")
+}
+
+model WOComment {
+  id         Int       @id @default(autoincrement())
+  woId       Int       @map("wo_id")
+  authorType OwnerType @map("author_type")
+  authorId   Int       @map("author_id") // Polymorphic: InternalUser.id or VendorUser.id
+  text       String    @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  workOrder WorkOrder @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@index([woId])
+  @@map("wo_comments")
+}
+
+model WorkReportRow {
+  id          Int     @id @default(autoincrement())
+  woId        Int     @map("wo_id")
+  rowNumber   Int     @map("row_number")
+  description String  @db.Text
+  unit        String  @db.VarChar(50)
+  quantity    Decimal @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workOrder WorkOrder @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@index([woId])
+  @@map("work_report_rows")
+}
+
+model InvoiceRow {
+  id              Int      @id @default(autoincrement())
+  woId            Int      @map("wo_id")
+  rowNumber       Int      @map("row_number")
+  description     String   @db.Text
+  unit            String   @db.VarChar(50)
+  quantity        Decimal  @db.Decimal(10, 2)
+  pricePerUnit    Decimal  @db.Decimal(12, 2) @map("price_per_unit")
+  lineTotal       Decimal  @db.Decimal(12, 2) @map("line_total")
+  priceListItemId Int?     @map("price_list_item_id")
+  warningFlag     Boolean  @default(false) @map("warning_flag")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  workOrder     WorkOrder             @relation(fields: [woId], references: [id], onDelete: Cascade)
+  priceListItem VendorPriceListItem?  @relation(fields: [priceListItemId], references: [id])
+
+  @@index([woId])
+  @@index([priceListItemId])
+  @@map("invoice_rows")
+}
+
+model VendorPriceListItem {
+  id           Int      @id @default(autoincrement())
+  vendorId     Int      @map("vendor_id")
+  category     String   @db.VarChar(255)
+  description  String   @db.Text
+  unit         String   @db.VarChar(50)
+  pricePerUnit   Decimal @db.Decimal(12, 2) @map("price_per_unit")
+  active         Boolean  @default(true)
+  selectableInUI Boolean  @default(true) @map("selectable_in_ui")
+  unitMinutes    Int?     @map("unit_minutes") // When set: service-time billing; quantity = ceil(durationMinutes / unitMinutes)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  vendor      VendorCompany @relation(fields: [vendorId], references: [id])
+  invoiceRows InvoiceRow[]
+
+  @@index([vendorId])
+  @@index([vendorId, category]) // For hierarchical dropdown
+  @@map("vendor_price_list")
+}
+
+// ============================================================================
+// INVOICE BATCH (prevent double invoicing of approved cost proposals)
+// ============================================================================
+
+model InvoiceBatch {
+  id               Int      @id @default(autoincrement())
+  batchNumber      String   @unique @map("batch_number") // Unique, sequential per vendor
+  vendorCompanyId  Int      @map("vendor_company_id")
+  createdById      Int      @map("created_by_id") // VendorUser (S3)
+  createdAt        DateTime @default(now()) @map("created_at")
+  totalAmount      Decimal  @db.Decimal(14, 2) @map("total_amount")
+  currency         String   @db.VarChar(3) @default("EUR")
+  status           String   @db.VarChar(50) @default("CREATED") @map("status")
+  pdfPath          String?  @db.Text @map("pdf_path") // Stored PDF path for GET :id/pdf
+
+  vendorCompany VendorCompany  @relation(fields: [vendorCompanyId], references: [id])
+  createdBy    VendorUser     @relation(fields: [createdById], references: [id])
+  items        InvoiceBatchItem[]
+  workOrders   WorkOrder[]    @relation("WorkOrderBatch")
+
+  @@index([vendorCompanyId])
+  @@index([createdById])
+  @@map("invoice_batches")
+}
+
+model InvoiceBatchItem {
+  id           Int          @id @default(autoincrement())
+  batchId      Int          @map("batch_id")
+  workOrderId  Int          @unique @map("work_order_id") // A WO can belong to only one batch
+
+  batch     InvoiceBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  workOrder WorkOrder    @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@map("invoice_batch_items")
+}
+
+// WorkOrder relation to InvoiceBatch is defined on WorkOrder (invoiceBatchId)
+
+// ============================================================================
+// ATTACHMENT ENTITY
+// ============================================================================
+
+enum AttachmentEntityType {
+  TICKET
+  WORK_ORDER @map("WO")
+}
+
+model Attachment {
+  id             Int                   @id @default(autoincrement())
+  entityType     AttachmentEntityType  @map("entity_type")
+  entityId       Int                   @map("entity_id")
+  ticketId       Int?                  @map("ticket_id")
+  workOrderId    Int?                  @map("work_order_id")
+  filePath       String                @db.Text @map("file_path")
+  fileName       String                @db.VarChar(255) @map("file_name")
+  uploadedByType OwnerType             @map("uploaded_by_type")
+  uploadedById   Int                   @map("uploaded_by_id")
+  internalFlag   Boolean               @default(true) @map("internal_flag")
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  ticket    Ticket?    @relation("TicketAttachments", fields: [ticketId], references: [id], onDelete: Cascade)
+  workOrder WorkOrder? @relation("WorkOrderAttachments", fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@map("attachments")
+}
+
+// ============================================================================
+// QR ENTITY
+// ============================================================================
+
+enum QRScanType {
+  CHECKIN
+  CHECKOUT
+}
+
+model QRRecord {
+  id                 Int        @id @default(autoincrement())
+  woId               Int        @map("wo_id")
+  qrToken            String     @unique @db.VarChar(255) @map("qr_token")
+  scanType           QRScanType @map("scan_type")
+  generatedTs        DateTime   @default(now()) @map("generated_ts")
+  expirationTs      DateTime   @map("expiration_ts")
+  usedFlag           Boolean    @default(false) @map("used_flag")
+  usedAt             DateTime?  @map("used_at")
+  techCountConfirmed Int?       @map("tech_count_confirmed")
+
+  workOrder WorkOrder @relation(fields: [woId], references: [id], onDelete: Cascade)
+
+  @@index([woId])
+  @@index([qrToken]) // Critical for fast QR validation
+  @@map("qr_records")
+}
+
+// ============================================================================
+// AUDIT LOG ENTITY
+// ============================================================================
+
+enum AuditEntityType {
+  TICKET
+  WORK_ORDER @map("WO")
+}
+
+model AuditLog {
+  id         Int             @id @default(autoincrement())
+  entityType AuditEntityType  @map("entity_type")
+  entityId   Int              @map("entity_id")
+  ticketId   Int?             @map("ticket_id")
+  workOrderId Int?            @map("work_order_id")
+  prevStatus String?          @db.VarChar(100) @map("prev_status")
+  newStatus  String           @db.VarChar(100) @map("new_status")
+  actionType String           @db.VarChar(100) @map("action_type")
+  actorType  OwnerType        @map("actor_type")
+  actorId    Int              @map("actor_id")
+  comment    String?          @db.Text
+  createdAt  DateTime        @default(now()) @map("created_at")
+
+  ticket    Ticket?    @relation("TicketAuditLogs", fields: [ticketId], references: [id], onDelete: Cascade)
+  workOrder WorkOrder? @relation("WorkOrderAuditLogs", fields: [workOrderId], references: [id], onDelete: Cascade)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@map("audit_log")
+}

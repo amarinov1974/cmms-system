@@ -1,0 +1,415 @@
+/**
+ * Ticket Submit Screen (Section 8)
+ * Accessible by Store Manager (store fixed) and AMM (with store selector).
+ */
+
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { ticketsAPI } from '../api/tickets';
+import { storesAPI } from '../api/stores';
+import { assetsAPI } from '../api/assets';
+import { useSession } from '../contexts/SessionContext';
+import { Layout, Button, Card } from '../components/shared';
+
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: 'ELECTRICAL_INSTALLATIONS', label: 'Electrical Installations' },
+  { value: 'HEATING_VENTILATION_AIR_CONDITIONING', label: 'Heating, Ventilation and Air Conditioning' },
+  { value: 'REFRIGERATION', label: 'Refrigeration' },
+  { value: 'KITCHEN_EQUIPMENT', label: 'Kitchen Equipment' },
+  { value: 'ELEVATORS', label: 'Elevators' },
+  { value: 'AUTOMATIC_DOORS', label: 'Automatic Doors' },
+  { value: 'FIRE_PROTECTION_SYSTEM', label: 'Fire Protection System' },
+  { value: 'WATER_AND_SEWAGE', label: 'Water and Sewage' },
+  { value: 'CONSTRUCTION_WORKS', label: 'Construction Works' },
+  { value: 'HYGIENE', label: 'Hygiene' },
+  { value: 'ENVIRONMENTAL', label: 'Environmental' },
+  { value: 'OTHER', label: 'Other' },
+];
+
+interface SubmitTicketPageProps {
+  backLink: string;
+  backLabel?: string;
+}
+
+export function SubmitTicketPage({ backLink, backLabel = 'Back' }: SubmitTicketPageProps) {
+  const { session } = useSession();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [storeId, setStoreId] = useState<number | ''>('');
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [urgent, setUrgent] = useState<boolean>(false);
+  const [assetIdInput, setAssetIdInput] = useState('');
+  const [assetLookupMessage, setAssetLookupMessage] = useState<'idle' | 'found' | 'notfound' | null>(null);
+  const [assetDescription, setAssetDescription] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState<'draft' | 'submitted' | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [validationError, setValidationError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const onNavigateRef = useRef(() => navigate(backLink));
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  onNavigateRef.current = () => navigate(backLink);
+
+  const isSM = session?.role === 'SM';
+  const isAMM = session?.role === 'AMM';
+
+  const { data: stores = [] } = useQuery({
+    queryKey: ['stores'],
+    queryFn: storesAPI.list,
+    enabled: isAMM,
+  });
+
+  useEffect(() => {
+    if (isSM && session?.storeId != null) {
+      setStoreId(session.storeId);
+    }
+    if (isAMM && stores.length === 1) {
+      setStoreId(stores[0].id);
+    }
+  }, [isSM, isAMM, session?.storeId, stores]);
+
+  useEffect(() => {
+    if (showSuccess == null) return;
+    const t = setTimeout(() => {
+      onNavigateRef.current();
+    }, 2000);
+    return () => clearTimeout(t);
+  }, [showSuccess]);
+
+  const createMutation = useMutation({
+    mutationFn: ticketsAPI.create,
+  });
+
+  const isBusy = createMutation.isPending || isSending;
+
+  const validate = (): boolean => {
+    setValidationError('');
+    if (isAMM && (storeId === '' || storeId == null)) {
+      setValidationError('Please select a store.');
+      return false;
+    }
+    if (!category.trim()) {
+      setValidationError('Please select a category.');
+      return false;
+    }
+    if (!description.trim()) {
+      setValidationError('Please enter a description.');
+      return false;
+    }
+    return true;
+  };
+
+  const resolvedStoreId = isSM ? session?.storeId : (storeId === '' ? null : Number(storeId));
+
+  const handleLookupAsset = async () => {
+    const id = parseInt(assetIdInput.trim(), 10);
+    if (Number.isNaN(id) || id < 1) {
+      setAssetLookupMessage(null);
+      setAssetDescription(null);
+      return;
+    }
+    setAssetLookupMessage('idle');
+    try {
+      const asset = await assetsAPI.getById(id);
+      if (asset) {
+        setAssetDescription(asset.description);
+        setAssetLookupMessage('found');
+      } else {
+        setAssetDescription(null);
+        setAssetLookupMessage('notfound');
+      }
+    } catch {
+      setAssetDescription(null);
+      setAssetLookupMessage('notfound');
+    }
+  };
+
+  const uploadFilesToTicket = async (ticketId: number) => {
+    for (const file of selectedFiles) {
+      await ticketsAPI.uploadAttachment(ticketId, file, false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    setSubmitError('');
+    if (resolvedStoreId == null || !validate()) return;
+    try {
+      const ticket = await createMutation.mutateAsync({
+        storeId: resolvedStoreId,
+        category,
+        description,
+        urgent,
+        assetId: (() => {
+          const id = parseInt(assetIdInput.trim(), 10);
+          return Number.isNaN(id) || id < 1 ? undefined : id;
+        })(),
+      });
+      if (selectedFiles.length > 0) await uploadFilesToTicket(ticket.id);
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setShowSuccess('draft');
+    } catch {
+      // Error via createMutation.isError
+    }
+  };
+
+  const handleSubmitTicket = async () => {
+    setSubmitError('');
+    if (resolvedStoreId == null || !validate()) return;
+    setIsSending(true);
+    try {
+      const ticket = await createMutation.mutateAsync({
+        storeId: resolvedStoreId,
+        category,
+        description,
+        urgent,
+        assetId: (() => {
+          const id = parseInt(assetIdInput.trim(), 10);
+          return Number.isNaN(id) || id < 1 ? undefined : id;
+        })(),
+      });
+      if (selectedFiles.length > 0) await uploadFilesToTicket(ticket.id);
+      try {
+        await ticketsAPI.submit(ticket.id);
+      } catch (err) {
+        const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to submit ticket';
+        setSubmitError(msg);
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      setShowSuccess('submitted');
+    } catch {
+      //
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  if (showSuccess != null) {
+    return (
+      <Layout
+        screenTitle="Submit Ticket"
+        backLink={backLink}
+        backLabel={backLabel}
+      >
+        <Card className="max-w-xl mx-auto text-center">
+          <div className="bg-green-100 border-2 border-green-500 rounded-lg p-6">
+            <p className="text-green-800 font-semibold text-xl mb-2">
+              {showSuccess === 'draft'
+                ? '✓ Ticket saved as draft.'
+                : '✓ Ticket submitted.'}
+            </p>
+            <p className="text-green-700 text-sm">
+              Returning to dashboard in 2 seconds...
+            </p>
+          </div>
+        </Card>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout
+      screenTitle="Submit Ticket"
+      backLink={backLink}
+      backLabel={backLabel}
+    >
+      <Card className="max-w-2xl mx-auto">
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-6">
+          {/* 8.2 Store Selection (AMM only) */}
+          {isAMM && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Store *
+              </label>
+              <select
+                value={storeId === '' ? '' : String(storeId)}
+                onChange={(e) => setStoreId(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
+                required
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="">— Select store —</option>
+                {stores.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* 8.3 Category (Mandatory) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Category *
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              required
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">— Select Category —</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat.value} value={cat.value}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 8.4 Description (Mandatory) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Description *
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              required
+              rows={6}
+              placeholder="Describe the observed issue, context, and findings in your own words..."
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* 8.5 Urgency (Mandatory) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Urgency *
+            </label>
+            <div className="flex gap-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="urgent"
+                  checked={!urgent}
+                  onChange={() => setUrgent(false)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">No</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="urgent"
+                  checked={urgent}
+                  onChange={() => setUrgent(true)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Yes (Urgent)</span>
+              </label>
+            </div>
+            {urgent && (
+              <p className="mt-2 text-sm text-amber-700">
+                Urgent tickets are routed to Area Maintenance Manager (C1) for immediate action.
+              </p>
+            )}
+          </div>
+
+          {/* 8.6 Attachments (Optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Attachments (optional)
+            </label>
+            <p className="text-xs text-gray-600 mb-2">
+              Add files or take a photo. On mobile, choosing images may open the camera.
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+              className="hidden"
+              onChange={(e) => setSelectedFiles(Array.from(e.target.files ?? []))}
+            />
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Add files or take photo
+            </Button>
+            {selectedFiles.length > 0 && (
+              <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
+                {selectedFiles.map((f, i) => (
+                  <li key={i}>{f.name}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* 8.7 Asset Linking (Optional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Asset linking (optional)
+            </label>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={assetIdInput}
+                  onChange={(e) => {
+                    setAssetIdInput(e.target.value);
+                    setAssetLookupMessage(null);
+                  }}
+                  onBlur={handleLookupAsset}
+                  placeholder="Asset ID"
+                  className="flex-1 p-3 border border-gray-300 rounded-lg"
+                />
+                <Button type="button" variant="secondary" onClick={handleLookupAsset}>
+                  Look up
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Or scan barcode/QR to enter Asset ID.
+              </p>
+              {assetLookupMessage === 'found' && assetDescription != null && (
+                <p className="text-sm text-green-700">
+                  Asset: {assetDescription}
+                </p>
+              )}
+              {assetLookupMessage === 'notfound' && (
+                <p className="text-sm text-amber-600">Asset not found</p>
+              )}
+            </div>
+          </div>
+
+          {/* 8.8 Buttons */}
+          <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+            <Button type="button" variant="secondary" onClick={() => navigate(backLink)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleSaveDraft}
+              disabled={isBusy}
+            >
+              {createMutation.isPending && !isSending ? 'Saving...' : 'Save as Draft'}
+            </Button>
+            <Button type="button" onClick={handleSubmitTicket} disabled={isBusy}>
+              {isSending ? 'Submitting...' : 'Submit Ticket'}
+            </Button>
+          </div>
+
+          {validationError && (
+            <p className="text-amber-600 text-sm">{validationError}</p>
+          )}
+          {createMutation.isError && (
+            <p className="text-red-600 text-sm">
+              {(createMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to create ticket'}
+            </p>
+          )}
+          {submitError && (
+            <p className="text-red-600 text-sm">{submitError}</p>
+          )}
+        </form>
+      </Card>
+    </Layout>
+  );
+}

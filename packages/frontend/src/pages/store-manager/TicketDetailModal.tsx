@@ -1,0 +1,393 @@
+/**
+ * Ticket Detail (Store Manager View) — Section 9
+ * Read-only block, Clarification mode when owner, visibility rules, history log.
+ */
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { ticketsAPI } from '../../api/tickets';
+import { workOrdersAPI } from '../../api/work-orders';
+import { useSession } from '../../contexts/SessionContext';
+import { Button, Badge } from '../../components/shared';
+import { TicketStatus } from '../../types/statuses';
+import { QRGenerationModal } from './QRGenerationModal';
+
+interface TicketDetailModalProps {
+  ticketId: number;
+  onClose: () => void;
+}
+
+export function TicketDetailModal({
+  ticketId,
+  onClose,
+}: TicketDetailModalProps) {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+  const [clarificationText, setClarificationText] = useState('');
+  const [clarificationAssetId, setClarificationAssetId] = useState('');
+  const [withdrawReason, setWithdrawReason] = useState('');
+  const [showWithdrawConfirm, setShowWithdrawConfirm] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+
+  const { data: ticket, isLoading } = useQuery({
+    queryKey: ['ticket', ticketId],
+    queryFn: () => ticketsAPI.getById(ticketId),
+  });
+
+  const { data: relatedWorkOrders = [] } = useQuery({
+    queryKey: ['work-orders', 'ticket', ticketId],
+    queryFn: () => workOrdersAPI.list({ ticketId }),
+    enabled: ticketId != null,
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: () => ticketsAPI.submit(ticketId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+    },
+  });
+
+  const submitUpdatedMutation = useMutation({
+    mutationFn: () => {
+      const raw = clarificationAssetId.trim();
+      const assetId = raw ? parseInt(raw, 10) : undefined;
+      const validAssetId = assetId != null && !Number.isNaN(assetId) && assetId >= 1 ? assetId : undefined;
+      return ticketsAPI.submitUpdated(ticketId, clarificationText, clarificationText, validAssetId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      setClarificationText('');
+      setClarificationAssetId('');
+      onClose();
+    },
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: () => ticketsAPI.withdraw(ticketId, withdrawReason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tickets'] });
+      onClose();
+    },
+  });
+
+  const addCommentMutation = useMutation({
+    mutationFn: () => ticketsAPI.addComment(ticketId, clarificationText),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ticket', ticketId] });
+      setClarificationText('');
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6">
+          <p>Loading ticket details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (ticket == null) {
+    return null;
+  }
+
+  const isOwner = session?.userId != null && ticket.currentOwnerUserId === session.userId;
+  const isCreator = session?.userId != null && ticket.createdByUserId === session.userId;
+  const canSubmitDraft = isOwner && ticket.currentStatus === 'Draft';
+  // Only the ticket creator (SM who created it) can submit clarification; unlimited exchange with AMM.
+  const isClarificationMode =
+    isCreator &&
+    ticket.currentStatus === TicketStatus.AWAITING_CREATOR_RESPONSE;
+  const clarificationValid = (clarificationText?.trim() ?? '').length > 0;
+  const readOnly = !isOwner;
+  const awaitingCreatorResponseNotCreator =
+    ticket.currentStatus === TicketStatus.AWAITING_CREATOR_RESPONSE && !isCreator;
+
+  const visibleComments = (
+    ticket.comments != null && readOnly
+      ? ticket.comments.filter((c) => !c.internalFlag)
+      : ticket.comments ?? []
+  ).slice().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const visibleAttachments = (ticket.attachments ?? []).filter(
+    (a) => !a.internalFlag
+  );
+
+  const submittedAt = ticket.submittedAt ?? (ticket.currentStatus !== 'Draft' ? ticket.createdAt : null);
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
+        {/* 9.1 Screen Header */}
+        <div className="p-6 border-b border-gray-200 sticky top-0 bg-white shrink-0">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Ticket Detail</h1>
+              <p className="text-sm text-gray-500 mt-0.5">
+                Ticket #{ticket.id}
+              </p>
+            </div>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Back
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6 overflow-y-auto">
+          {readOnly && (
+            <div className="bg-gray-100 border border-gray-300 rounded-lg p-3 text-sm text-gray-700">
+              You are not the owner of this ticket. View only — no modifications.
+            </div>
+          )}
+          {awaitingCreatorResponseNotCreator && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+              This ticket is awaiting a clarification response from the ticket creator ({ticket.createdByUserName ?? 'Store Manager'}). Only they can submit the response and return it to the Area Maintenance Manager.
+            </div>
+          )}
+
+          {/* 9.2 Ticket Core Information (Read-Only Block) */}
+          <section className="space-y-4">
+            <h2 className="font-semibold text-gray-900">Ticket information</h2>
+            <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+              <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+                <span><strong>Ticket ID:</strong> {ticket.id}</span>
+                {submittedAt != null && (
+                  <span><strong>Date &amp; Time Submitted:</strong> {new Date(submittedAt).toLocaleString()}</span>
+                )}
+                <span><strong>Created By:</strong> {ticket.createdByUserName}{ticket.createdByUserRole != null ? ` (${ticket.createdByUserRole})` : ''}</span>
+                <span><strong>Current Owner:</strong> {ticket.currentOwnerUserName != null ? `${ticket.currentOwnerUserName}${ticket.currentOwnerUserRole != null ? ` (${ticket.currentOwnerUserRole})` : ''}` : '—'}</span>
+                <span><strong>Store:</strong> {ticket.storeName}</span>
+                <span><strong>Category:</strong> {ticket.category}</span>
+                <span>
+                  <strong>Urgency:</strong>{' '}
+                  {ticket.urgent ? <Badge variant="urgent">Urgent</Badge> : <Badge variant="default">Non-Urgent</Badge>}
+                </span>
+                <span><strong>Current Status:</strong> <Badge variant={ticket.currentStatus.includes('Approved') ? 'success' : 'warning'}>{ticket.currentStatus}</Badge></span>
+              </div>
+              <div>
+                <strong className="text-sm text-gray-600">Original Problem Description (locked)</strong>
+                <p className="mt-1 text-sm text-gray-900 whitespace-pre-wrap">{ticket.originalDescription ?? ticket.description}</p>
+              </div>
+            </div>
+          </section>
+
+          {/* Related Work Orders — SM: list and navigate to QR (one WO direct, multiple require selection) */}
+          <section>
+            <h3 className="font-semibold text-gray-900 mb-2">Related Work Orders</h3>
+            {relatedWorkOrders.length === 0 ? (
+              <p className="text-sm text-gray-500">No work orders for this ticket.</p>
+            ) : (
+              <>
+                <ul className="bg-gray-50 rounded-lg p-4 space-y-2 mb-3">
+                  {relatedWorkOrders.map((wo) => (
+                    <li key={wo.id} className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium">Work Order #{wo.id}</span>
+                      <Badge variant="default">{wo.currentStatus}</Badge>
+                      <span className="text-gray-600">{wo.vendorCompanyName}</span>
+                      <span className="text-gray-500">{new Date(wo.updatedAt).toLocaleDateString()}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Button type="button" onClick={() => setShowQRModal(true)}>
+                  {relatedWorkOrders.length === 1 ? 'Generate QR Code' : 'Generate QR Code (select work order)'}
+                </Button>
+              </>
+            )}
+          </section>
+
+          {/* 9.4 Asset Visibility */}
+          {(ticket.assetId != null || ticket.assetDescription != null) && (
+            <section>
+              <h3 className="font-semibold text-gray-900 mb-2">Asset</h3>
+              <div className="bg-gray-50 rounded-lg p-4 text-sm">
+                {ticket.assetId != null && <span><strong>Asset ID:</strong> {ticket.assetId}</span>}
+                {ticket.assetDescription != null && (
+                  <p className="mt-1"><strong>Description:</strong> {ticket.assetDescription}</p>
+                )}
+              </div>
+            </section>
+          )}
+
+          {/* 9.3 Attachments (view/download only; add-only in clarification) */}
+          <section>
+            <h3 className="font-semibold text-gray-900 mb-2">Attachments</h3>
+            {visibleAttachments.length > 0 ? (
+              <ul className="bg-gray-50 rounded-lg p-4 space-y-2">
+                {visibleAttachments.map((a) => (
+                  <li key={a.id} className="flex items-center justify-between text-sm">
+                    <span>{a.fileName}</span>
+                    <span className="text-gray-500">{new Date(a.createdAt).toLocaleDateString()}</span>
+                    {/* View/Download placeholder - no delete/modify */}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">No attachments</p>
+            )}
+            {isClarificationMode && (
+              <p className="mt-2 text-xs text-gray-500">Add attachments (add-only) — upload will be available in a future release.</p>
+            )}
+          </section>
+
+          {/* Draft: Submit Ticket (only when owner and Draft) */}
+          {canSubmitDraft && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800 mb-3">This ticket is in Draft. Submit it to send for processing.</p>
+              <Button type="button" onClick={() => submitMutation.mutate()} disabled={submitMutation.isPending}>
+                {submitMutation.isPending ? 'Submitting...' : 'Submit Ticket'}
+              </Button>
+            </div>
+          )}
+
+          {/* 9.5–9.7 Clarification Mode */}
+          {isClarificationMode && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
+              <p className="text-sm text-yellow-800 font-medium">Clarification requested. Provide your response (mandatory) and optionally add attachments or link an asset.</p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Clarification Response *</label>
+                <textarea
+                  value={clarificationText}
+                  onChange={(e) => setClarificationText(e.target.value)}
+                  placeholder="Enter your clarification response..."
+                  rows={4}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                />
+              </div>
+              {ticket.assetId == null && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Add asset link (optional)</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={clarificationAssetId}
+                    onChange={(e) => setClarificationAssetId(e.target.value)}
+                    placeholder="Asset ID"
+                    className="w-full p-3 border border-gray-300 rounded-lg max-w-xs"
+                  />
+                </div>
+              )}
+              {submitUpdatedMutation.isError && (
+                <p className="text-sm text-red-600 bg-red-50 p-2 rounded">
+                  {(() => {
+                    const err = submitUpdatedMutation.error as { response?: { data?: { error?: string } }; message?: string };
+                    return err?.response?.data?.error ?? (err?.message ?? 'Submit failed. Please try again.');
+                  })()}
+                </p>
+              )}
+              <div className="flex gap-3 pt-2">
+                <Button
+                  type="button"
+                  onClick={() => submitUpdatedMutation.mutate()}
+                  disabled={submitUpdatedMutation.isPending || !clarificationValid}
+                >
+                  {submitUpdatedMutation.isPending ? 'Submitting...' : 'Submit Updated Ticket'}
+                </Button>
+                <Button type="button" variant="danger" onClick={() => setShowWithdrawConfirm(true)}>
+                  Withdraw Ticket
+                </Button>
+              </div>
+
+              {showWithdrawConfirm && (
+                <div className="mt-4 pt-4 border-t border-yellow-300 space-y-3">
+                  <p className="text-sm text-red-700 font-medium">Withdraw this ticket? This is a terminal state.</p>
+                  <textarea
+                    value={withdrawReason}
+                    onChange={(e) => setWithdrawReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    rows={2}
+                    className="w-full p-3 border border-gray-300 rounded-lg"
+                  />
+                  <div className="flex gap-3">
+                    <Button type="button" variant="danger" onClick={() => withdrawMutation.mutate()} disabled={withdrawMutation.isPending}>
+                      {withdrawMutation.isPending ? 'Withdrawing...' : 'Confirm Withdrawal'}
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={() => setShowWithdrawConfirm(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Comments (non-internal only when read-only) */}
+          <section>
+            <h3 className="font-semibold text-gray-900 mb-2">Comments</h3>
+            {visibleComments.length > 0 ? (
+              <div className="space-y-3">
+                {visibleComments.map((c) => (
+                  <div key={c.id} className="bg-gray-50 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-medium text-gray-900">{c.authorUserName}</span>
+                      <span className="text-xs text-gray-500">{new Date(c.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p className="text-sm text-gray-700">{c.text}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No comments</p>
+            )}
+            {!readOnly && !isClarificationMode && (
+              <div className="mt-4">
+                <textarea
+                  value={clarificationText}
+                  onChange={(e) => setClarificationText(e.target.value)}
+                  placeholder="Add a comment..."
+                  rows={3}
+                  className="w-full p-3 border border-gray-300 rounded-lg"
+                />
+                <Button type="button" onClick={() => addCommentMutation.mutate()} disabled={!clarificationText.trim() || addCommentMutation.isPending} className="mt-2">
+                  {addCommentMutation.isPending ? 'Adding...' : 'Add Comment'}
+                </Button>
+              </div>
+            )}
+          </section>
+
+          {/* 9.10 History Log — newest first, Performed by (Name + Role) */}
+          {ticket.auditLog != null && ticket.auditLog.length > 0 && (
+            <section>
+              <h3 className="font-semibold text-gray-900 mb-2">History</h3>
+              <div className="space-y-2">
+                {ticket.auditLog.map((entry) => (
+                  <div key={entry.id} className="text-sm bg-gray-50 rounded-lg p-3">
+                    <span className="text-gray-600">{new Date(entry.createdAt).toLocaleString()}</span>
+                    {' — '}
+                    <span className="font-medium">{entry.actionType}</span>
+                    {entry.prevStatus != null && (
+                      <span className="text-gray-600"> ({entry.prevStatus} → {entry.newStatus})</span>
+                    )}
+                    <p className="mt-1 text-gray-600">
+                      Performed by {entry.actorName}{entry.actorRole != null ? ` (${entry.actorRole})` : ''}
+                    </p>
+                    {entry.comment != null && <p className="text-gray-600 mt-1">&quot;{entry.comment}&quot;</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* 9.11 Visibility: SM must not see cost estimation, approval chain, vendor pricing */}
+          {/* Sections costEstimation and approvalRecords are intentionally not rendered for SM */}
+        </div>
+
+        <div className="p-6 border-t border-gray-200 sticky bottom-0 bg-white shrink-0">
+          <Button type="button" variant="secondary" onClick={onClose} className="w-full">
+            Back
+          </Button>
+        </div>
+      </div>
+
+      {showQRModal && relatedWorkOrders.length > 0 && (
+        <QRGenerationModal
+          ticketId={ticketId}
+          workOrders={relatedWorkOrders}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
+    </div>
+  );
+}

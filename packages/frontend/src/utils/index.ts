@@ -1,0 +1,4 @@
+/**
+ * Frontend utilities - placeholder.
+ */
+export {};

@@ -1,0 +1,485 @@
+/**
+ * AMM Work Order Detail — Section 16
+ * Cost Proposal Review: read-only WO + invoice table (with warning highlights) + Approve / Request Revision / Close Without Cost.
+ */
+
+import { useState } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { workOrdersAPI } from '../../api/work-orders';
+import { useSession } from '../../contexts/SessionContext';
+import { Button, Badge } from '../../components/shared';
+
+interface AMMWorkOrderDetailModalProps {
+  workOrderId: number;
+  onClose: () => void;
+}
+
+export function AMMWorkOrderDetailModal({
+  workOrderId,
+  onClose,
+}: AMMWorkOrderDetailModalProps) {
+  const { session } = useSession();
+  const queryClient = useQueryClient();
+  const [revisionComment, setRevisionComment] = useState('');
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+  const [resendComment, setResendComment] = useState('');
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+
+  const { data: wo, isLoading } = useQuery({
+    queryKey: ['work-order', workOrderId],
+    queryFn: () => workOrdersAPI.getById(workOrderId),
+    enabled: workOrderId > 0,
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: () => workOrdersAPI.approveCostProposal(workOrderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
+      onClose();
+    },
+  });
+
+  const revisionMutation = useMutation({
+    mutationFn: () => workOrdersAPI.requestCostRevision(workOrderId, revisionComment),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
+      setRevisionComment('');
+      setShowRevisionForm(false);
+      onClose();
+    },
+  });
+
+  const closeWithoutCostMutation = useMutation({
+    mutationFn: () => workOrdersAPI.closeWithoutCost(workOrderId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
+      setShowCloseConfirm(false);
+      onClose();
+    },
+  });
+
+  const resendToVendorMutation = useMutation({
+    mutationFn: (comment: string) => workOrdersAPI.resendToVendor(workOrderId, comment || undefined),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
+      setResendComment('');
+      onClose();
+    },
+  });
+
+  const rejectWoMutation = useMutation({
+    mutationFn: (reason: string) => workOrdersAPI.reject(workOrderId, reason),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
+      setShowRejectForm(false);
+      setRejectReason('');
+      onClose();
+    },
+  });
+
+  const isCostProposalPrepared =
+    wo?.currentStatus === 'Cost Proposal Prepared';
+  const isOwner = session?.userId != null && wo?.currentOwnerId === session.userId;
+  const canAct = isCostProposalPrepared && isOwner;
+
+  // Returned by S1 to AMM: status Awaiting Service Provider, owner is INTERNAL (AMM)
+  const isReturnedToAm =
+    wo?.currentStatus === 'Awaiting Service Provider' &&
+    wo?.currentOwnerType === 'INTERNAL' &&
+    isOwner;
+
+  if (isLoading || wo == null) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="bg-white rounded-lg p-6">
+          <p>Loading work order...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white rounded-lg max-w-4xl w-full my-8">
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Work Order Detail</h1>
+              <p className="text-sm text-gray-600 mt-1">
+                WO #{wo.id} • Ticket #{wo.ticketId}
+              </p>
+              <Badge variant={wo.urgent ? 'danger' : 'secondary'} className="mt-2">
+                {wo.urgent ? 'Urgent' : 'Non-Urgent'}
+              </Badge>
+            </div>
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Back
+            </Button>
+          </div>
+        </div>
+
+        <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
+          {/* 16.2 Read-only sections */}
+          <section>
+            <h2 className="font-semibold text-gray-900 mb-2">Details</h2>
+            <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-600">Status:</span>
+                <Badge variant={wo.currentStatus === 'Cost Proposal Prepared' ? 'warning' : 'default'}>
+                  {wo.currentStatus ?? '—'}
+                </Badge>
+              </div>
+              <div>
+                <span className="text-gray-600">Current owner:</span>{' '}
+                {wo.assignedTechnicianName != null && wo.assignedTechnicianName !== ''
+                  ? wo.assignedTechnicianName
+                  : wo.currentOwnerType === 'VENDOR'
+                    ? 'Vendor (S1)'
+                    : 'AMM'}
+              </div>
+              <div>
+                <span className="text-gray-600">ETA:</span>{' '}
+                {wo.eta != null
+                  ? new Date(wo.eta).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+                  : '—'}
+              </div>
+              <div><span className="text-gray-600">Store:</span> {wo.storeName ?? '—'}</div>
+              {wo.storeAddress != null && wo.storeAddress !== '' && (
+                <div><span className="text-gray-600">Address:</span> {wo.storeAddress}</div>
+              )}
+              <div><span className="text-gray-600">Category:</span> {wo.category ?? '—'}</div>
+              <div><span className="text-gray-600">AMM comment:</span> {wo.commentToVendor ?? '—'}</div>
+              {wo.assetDescription != null && wo.assetDescription !== '' && (
+                <div><span className="text-gray-600">Asset:</span> {wo.assetDescription}</div>
+              )}
+              {wo.attachments != null && wo.attachments.length > 0 && (
+                <div>
+                  <span className="text-gray-600">Attachments:</span>
+                  <ul className="list-disc list-inside mt-1">
+                    {wo.attachments.map((a) => (
+                      <li key={a.id}>{a.fileName}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </section>
+
+          {/* Returned by S1: AMM can resend to vendor or reject */}
+          {isReturnedToAm && (
+            <section className="space-y-4 border-t pt-4">
+              <h2 className="font-semibold text-gray-900">Actions (returned by vendor)</h2>
+              <p className="text-sm text-gray-600">
+                This work order was returned by the service provider (S1). Resend it to the vendor with an optional comment, or reject it.
+              </p>
+              <div className="grid gap-4 sm:grid-cols-1">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="font-medium text-blue-900 mb-2">Resend to vendor (S1)</h3>
+                  <p className="text-sm text-blue-700 mb-3">
+                    Send the work order back to the vendor. You can add a comment (e.g. clarification) for them.
+                  </p>
+                  <textarea
+                    value={resendComment}
+                    onChange={(e) => setResendComment(e.target.value)}
+                    placeholder="Optional comment for vendor..."
+                    rows={2}
+                    className="w-full p-3 border border-gray-300 rounded-lg mb-3"
+                  />
+                  <Button
+                    type="button"
+                    onClick={() => resendToVendorMutation.mutate(resendComment)}
+                    disabled={resendToVendorMutation.isPending}
+                  >
+                    {resendToVendorMutation.isPending ? 'Sending...' : 'Resend to vendor'}
+                  </Button>
+                </div>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <h3 className="font-medium text-red-900 mb-2">Reject work order</h3>
+                  {!showRejectForm ? (
+                    <>
+                      <p className="text-sm text-red-700 mb-3">
+                        Reject this work order. Terminal state.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        onClick={() => setShowRejectForm(true)}
+                      >
+                        Reject work order
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-red-900">Reason *</label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="Reason for rejection..."
+                        rows={2}
+                        className="w-full p-3 border border-gray-300 rounded-lg"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="danger"
+                          onClick={() => rejectWoMutation.mutate(rejectReason)}
+                          disabled={!rejectReason.trim() || rejectWoMutation.isPending}
+                        >
+                          {rejectWoMutation.isPending ? 'Rejecting...' : 'Confirm reject'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setShowRejectForm(false);
+                            setRejectReason('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              {(resendToVendorMutation.isError || rejectWoMutation.isError) && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  {(resendToVendorMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                    (rejectWoMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                    'Action failed'}
+                </div>
+              )}
+            </section>
+          )}
+
+          {wo.workReport != null && wo.workReport.length > 0 && (
+            <section>
+              <h2 className="font-semibold text-gray-900 mb-2">Technician work report (read-only)</h2>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="text-left p-2">#</th>
+                      <th className="text-left p-2">Description</th>
+                      <th className="text-left p-2">Unit</th>
+                      <th className="text-right p-2">Quantity</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wo.workReport.map((row, idx) => (
+                      <tr key={idx} className="border-t border-gray-100">
+                        <td className="p-2">{idx + 1}</td>
+                        <td className="p-2">{row.description}</td>
+                        <td className="p-2">{row.unit}</td>
+                        <td className="p-2 text-right">{row.quantity}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {/* 16.3 Invoice proposal table (read-only, highlighted rows if warning) */}
+          {wo.invoiceRows != null && wo.invoiceRows.length > 0 && (
+            <section>
+              <h2 className="font-semibold text-gray-900 mb-2">Invoice proposal (from S3)</h2>
+              <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-100">
+                      <th className="text-left p-2">#</th>
+                      <th className="text-left p-2">Description</th>
+                      <th className="text-left p-2">Unit</th>
+                      <th className="text-right p-2">Qty</th>
+                      <th className="text-right p-2">Price/Unit</th>
+                      <th className="text-right p-2">Line Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wo.invoiceRows.map((r) => (
+                      <tr
+                        key={r.id}
+                        className={`border-t border-gray-100 ${r.warningFlag ? 'bg-red-50' : ''}`}
+                      >
+                        <td className="p-2">{r.rowNumber}</td>
+                        <td className="p-2">{r.description}</td>
+                        <td className="p-2">{r.unit}</td>
+                        <td className="p-2 text-right">{r.quantity}</td>
+                        <td className="p-2 text-right">€{Number(r.pricePerUnit).toFixed(2)}</td>
+                        <td className="p-2 text-right">€{Number(r.lineTotal).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {wo.totalCost != null && (
+                <div className="mt-3 p-3 bg-gray-100 rounded-lg flex justify-between items-center">
+                  <span className="font-semibold text-gray-900">Grand total</span>
+                  <span className="text-lg font-bold">€{Number(wo.totalCost).toFixed(2)}</span>
+                </div>
+              )}
+              {wo.invoiceRows.some((r) => r.warningFlag) && (
+                <p className="text-xs text-amber-700 mt-2">
+                  Rows in light red: item not in price list and/or quantity differs from technician report (review only).
+                </p>
+              )}
+            </section>
+          )}
+
+          {/* 16.4–16.7 AMM action buttons */}
+          {canAct && (
+            <section className="space-y-4 border-t pt-4">
+              <h2 className="font-semibold text-gray-900">Actions</h2>
+              <div className="grid gap-4 sm:grid-cols-1">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                  <h3 className="font-medium text-green-900 mb-2">Approve Cost Proposal</h3>
+                  <p className="text-sm text-green-700 mb-3">
+                    Finalize this cost proposal. Work order moves to approved/archived. Ticket may be archived when all WOs are closed.
+                  </p>
+                  <Button
+                    type="button"
+                    onClick={() => approveMutation.mutate()}
+                    disabled={approveMutation.isPending}
+                  >
+                    {approveMutation.isPending ? 'Approving...' : 'Approve Cost Proposal'}
+                  </Button>
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <h3 className="font-medium text-amber-900 mb-2">Request Cost Revision</h3>
+                  {!showRevisionForm ? (
+                    <>
+                      <p className="text-sm text-amber-700 mb-3">
+                        Send back to S3 for changes. Comment is mandatory.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setShowRevisionForm(true)}
+                      >
+                        Request Cost Revision
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-amber-900">Comment *</label>
+                      <textarea
+                        value={revisionComment}
+                        onChange={(e) => setRevisionComment(e.target.value)}
+                        placeholder="Explain what needs to be revised..."
+                        rows={3}
+                        className="w-full p-3 border border-gray-300 rounded-lg"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          onClick={() => revisionMutation.mutate()}
+                          disabled={!revisionComment.trim() || revisionMutation.isPending}
+                        >
+                          {revisionMutation.isPending ? 'Sending...' : 'Send Revision Request'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => {
+                            setShowRevisionForm(false);
+                            setRevisionComment('');
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-gray-100 border border-gray-200 rounded-lg p-4">
+                  <h3 className="font-medium text-gray-900 mb-2">Close Without Cost</h3>
+                  {!showCloseConfirm ? (
+                    <>
+                      <p className="text-sm text-gray-700 mb-3">
+                        No invoice required (e.g. warranty, internal decision). Terminal state.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => setShowCloseConfirm(true)}
+                      >
+                        Close Without Cost
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-700">
+                        Are you sure? Status will be Closed Without Cost and the work order will be terminal.
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          type="button"
+                          variant="danger"
+                          onClick={() => closeWithoutCostMutation.mutate()}
+                          disabled={closeWithoutCostMutation.isPending}
+                        >
+                          {closeWithoutCostMutation.isPending ? 'Closing...' : 'Confirm Close Without Cost'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setShowCloseConfirm(false)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* History — actions with comments, newest first */}
+          {wo.auditLog != null && wo.auditLog.length > 0 && (
+            <section>
+              <h3 className="font-semibold text-gray-900 mb-2">History</h3>
+              <div className="space-y-2">
+                {wo.auditLog.map((entry) => (
+                  <div key={entry.id} className="text-sm bg-gray-50 rounded-lg p-3">
+                    <span className="text-gray-600">{new Date(entry.createdAt).toLocaleString()}</span>
+                    {' — '}
+                    <span className="font-medium">{entry.actionType}</span>
+                    {entry.prevStatus != null && (
+                      <span className="text-gray-600"> ({entry.prevStatus} → {entry.newStatus})</span>
+                    )}
+                    <p className="mt-1 text-gray-600">
+                      Performed by {entry.actorName}{entry.actorRole != null ? ` (${entry.actorRole})` : ''}
+                    </p>
+                    {entry.comment != null && <p className="text-gray-600 mt-1">&quot;{entry.comment}&quot;</p>}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {(approveMutation.isError || revisionMutation.isError || closeWithoutCostMutation.isError) && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-700">
+                {(approveMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                  (revisionMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                  (closeWithoutCostMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                  'Action failed'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
