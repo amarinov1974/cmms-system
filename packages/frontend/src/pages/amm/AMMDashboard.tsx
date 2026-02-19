@@ -74,11 +74,13 @@ export function AMMDashboard() {
     (wo) => wo.currentStatus === WorkOrderStatus.COST_PROPOSAL_PREPARED
   );
   const followUpExceptionWOs = ownedWorkOrders.filter((wo) =>
-    [
-      WorkOrderStatus.FOLLOW_UP_REQUESTED,
-      WorkOrderStatus.REPAIR_UNSUCCESSFUL,
-      WorkOrderStatus.NEW_WO_NEEDED,
-    ].includes(wo.currentStatus)
+    (
+      [
+        WorkOrderStatus.FOLLOW_UP_REQUESTED,
+        WorkOrderStatus.REPAIR_UNSUCCESSFUL,
+        WorkOrderStatus.NEW_WO_NEEDED,
+      ] as readonly string[]
+    ).includes(wo.currentStatus)
   );
 
   const { data: regionTickets = [], isLoading: loadingRegionTickets } = useQuery({
@@ -98,7 +100,7 @@ export function AMMDashboard() {
     enabled: session?.regionId != null && session?.userId != null,
   });
 
-  const terminalStatuses = [
+  const terminalStatuses: readonly string[] = [
     TicketStatus.REJECTED,
     TicketStatus.WITHDRAWN,
     TicketStatus.ARCHIVED,

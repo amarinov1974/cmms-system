@@ -39,7 +39,7 @@ export function AMMFollowUpWorkOrdersPage() {
   });
 
   const followUpWOs = ownedWorkOrders
-    .filter((wo) => FOLLOW_UP_STATUSES.includes(wo.currentStatus))
+    .filter((wo) => (FOLLOW_UP_STATUSES as readonly string[]).includes(wo.currentStatus))
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
 
   return (

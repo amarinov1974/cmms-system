@@ -11,13 +11,14 @@ export const TicketStatus = {
     COST_ESTIMATION_NEEDED: 'Cost Estimation Needed',
     COST_ESTIMATION_APPROVAL_NEEDED: 'Cost Estimation Approval Needed',
     COST_ESTIMATION_APPROVED: 'Ticket Cost Estimation Approved',
+    WORK_ORDER_IN_PROGRESS: 'Work Order In Progress',
     REJECTED: 'Ticket Rejected',
     WITHDRAWN: 'Ticket Withdrawn',
     ARCHIVED: 'Ticket Archived',
 };
 export const WorkOrderStatus = {
-    CREATED: 'Work Order Created',
-    ACCEPTED_TECHNICIAN_ASSIGNED: 'Accepted / Technician Assigned',
+    CREATED: 'Awaiting Service Provider',
+    ACCEPTED_TECHNICIAN_ASSIGNED: 'Service Visit Scheduled',
     SERVICE_IN_PROGRESS: 'Service In Progress',
     SERVICE_COMPLETED: 'Service Completed',
     FOLLOW_UP_REQUESTED: 'Follow-Up Visit Requested',
@@ -29,7 +30,7 @@ export const WorkOrderStatus = {
     CLOSED_WITHOUT_COST: 'Closed Without Cost',
     REJECTED: 'Work Order Rejected',
 };
-// Terminal states
+// Terminal states (typed as readonly string[] so .includes(apiString) is valid when API returns currentStatus: string)
 export const TerminalTicketStatuses = [
     TicketStatus.REJECTED,
     TicketStatus.WITHDRAWN,

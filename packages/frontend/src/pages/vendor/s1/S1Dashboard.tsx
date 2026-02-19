@@ -13,7 +13,7 @@ import { WorkOrderStatus } from '../../../types/statuses';
 import { S1WorkOrderList } from './S1WorkOrderList';
 import { S1WorkOrderDetailModal } from './S1WorkOrderDetailModal';
 
-const ACTIVE_STATUSES = [
+const ACTIVE_STATUSES: readonly string[] = [
   WorkOrderStatus.ACCEPTED_TECHNICIAN_ASSIGNED,
   WorkOrderStatus.SERVICE_IN_PROGRESS,
   WorkOrderStatus.SERVICE_COMPLETED,
@@ -23,7 +23,7 @@ const ACTIVE_STATUSES = [
   WorkOrderStatus.COST_PROPOSAL_PREPARED,
   WorkOrderStatus.COST_REVISION_REQUESTED,
 ];
-const ARCHIVED_STATUSES = [WorkOrderStatus.COST_PROPOSAL_APPROVED, WorkOrderStatus.CLOSED_WITHOUT_COST, WorkOrderStatus.REJECTED];
+const ARCHIVED_STATUSES: readonly string[] = [WorkOrderStatus.COST_PROPOSAL_APPROVED, WorkOrderStatus.CLOSED_WITHOUT_COST, WorkOrderStatus.REJECTED];
 
 export function S1Dashboard() {
   const { session } = useSession();
@@ -62,7 +62,7 @@ export function S1Dashboard() {
     (wo) => wo.currentOwnerId !== session?.userId
   );
   // Active: includes CREATED (e.g. returned to AMM — still "Awaiting Service Provider") + normal active statuses
-  const otherActiveStatuses = [WorkOrderStatus.CREATED, ...ACTIVE_STATUSES];
+  const otherActiveStatuses: readonly string[] = [WorkOrderStatus.CREATED, ...ACTIVE_STATUSES];
   const otherActive = notOwnedByS1.filter((wo) =>
     otherActiveStatuses.includes(wo.currentStatus)
   );

@@ -36,14 +36,14 @@ export const WorkOrderStatus = {
 export type TicketStatusType = (typeof TicketStatus)[keyof typeof TicketStatus];
 export type WorkOrderStatusType = (typeof WorkOrderStatus)[keyof typeof WorkOrderStatus];
 
-// Terminal states
-export const TerminalTicketStatuses: TicketStatusType[] = [
+// Terminal states (typed as readonly string[] so .includes(apiString) is valid when API returns currentStatus: string)
+export const TerminalTicketStatuses: readonly string[] = [
   TicketStatus.REJECTED,
   TicketStatus.WITHDRAWN,
   TicketStatus.ARCHIVED,
 ];
 
-export const TerminalWorkOrderStatuses: WorkOrderStatusType[] = [
+export const TerminalWorkOrderStatuses: readonly string[] = [
   WorkOrderStatus.COST_PROPOSAL_APPROVED,
   WorkOrderStatus.CLOSED_WITHOUT_COST,
   WorkOrderStatus.REJECTED,

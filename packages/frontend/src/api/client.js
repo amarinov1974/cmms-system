@@ -3,8 +3,9 @@
  * Axios instance with base config
  */
 import axios from 'axios';
+// Use relative /api in dev so Vite proxy works; avoids CORS and wrong host/port
 export const apiClient = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000/api',
+    baseURL: import.meta.env.VITE_API_URL ?? '/api',
     withCredentials: true, // Send cookies
     headers: {
         'Content-Type': 'application/json',

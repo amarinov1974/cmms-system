@@ -21,8 +21,8 @@ export const ticketsAPI = {
         const { data } = await apiClient.post(`/tickets/${ticketId}/submit`);
         return data;
     },
-    submitUpdated: async (ticketId, updatedDescription, comment) => {
-        const { data } = await apiClient.post(`/tickets/${ticketId}/submit-updated`, { updatedDescription, comment });
+    submitUpdated: async (ticketId, updatedDescription, comment, assetId) => {
+        const { data } = await apiClient.post(`/tickets/${ticketId}/submit-updated`, { updatedDescription, comment, assetId });
         return data;
     },
     withdraw: async (ticketId, reason) => {
@@ -32,8 +32,8 @@ export const ticketsAPI = {
     addComment: async (ticketId, text) => {
         await apiClient.post(`/tickets/${ticketId}/comments`, { text });
     },
-    requestClarification: async (ticketId, comment) => {
-        const { data } = await apiClient.post(`/tickets/${ticketId}/request-clarification`, { comment });
+    requestClarification: async (ticketId, comment, assignToRole) => {
+        const { data } = await apiClient.post(`/tickets/${ticketId}/request-clarification`, { comment, assignToRole: assignToRole || 'SM' });
         return data;
     },
     reject: async (ticketId, reason) => {
@@ -59,5 +59,22 @@ export const ticketsAPI = {
     returnCostEstimation: async (ticketId, comment) => {
         const { data } = await apiClient.post(`/tickets/${ticketId}/return-cost-estimation`, { comment });
         return data;
+    },
+    /** Upload a file attachment to a ticket. */
+    uploadAttachment: async (ticketId, file, internalFlag = true) => {
+        const form = new FormData();
+        form.append('file', file);
+        form.append('internalFlag', String(internalFlag));
+        const baseURL = import.meta.env.VITE_API_URL ?? '/api';
+        const res = await fetch(`${baseURL}/tickets/${ticketId}/attachments`, {
+            method: 'POST',
+            credentials: 'include',
+            body: form,
+        });
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(err?.error ?? 'Upload failed');
+        }
+        return res.json();
     },
 };

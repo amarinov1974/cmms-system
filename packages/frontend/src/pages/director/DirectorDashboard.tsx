@@ -48,7 +48,7 @@ export function DirectorDashboard() {
     enabled: session?.userId != null,
   });
 
-  const terminalStatuses = [
+  const terminalStatuses: readonly string[] = [
     TicketStatus.REJECTED,
     TicketStatus.WITHDRAWN,
     TicketStatus.ARCHIVED,

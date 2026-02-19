@@ -13,7 +13,8 @@ export function ProtectedRoute({ children, allowedRoles }) {
     if (!session) {
         return _jsx(Navigate, { to: "/", replace: true });
     }
-    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(session.role)) {
+    const sessionRole = String(session.role ?? '').trim();
+    if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(sessionRole)) {
         return (_jsx("div", { className: "min-h-screen flex items-center justify-center", children: _jsx("div", { className: "text-red-600", children: "Access Denied" }) }));
     }
     return _jsx(_Fragment, { children: children });
