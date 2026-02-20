@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SessionProvider } from './contexts/SessionContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { AccessCodeGate } from './components/AccessCodeGate';
 import { EntryScreen } from './pages/EntryScreen';
 import { StoreManagerDashboard } from './pages/store-manager/StoreManagerDashboard';
 import { SMActionRequiredPage } from './pages/store-manager/SMActionRequiredPage';
@@ -35,6 +36,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <AccessCodeGate>
       <SessionProvider>
         <BrowserRouter>
           <Routes>
@@ -207,6 +209,7 @@ function App() {
           </Routes>
         </BrowserRouter>
       </SessionProvider>
+      </AccessCodeGate>
     </QueryClientProvider>
   );
 }

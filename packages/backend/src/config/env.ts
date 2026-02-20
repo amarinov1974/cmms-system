@@ -10,6 +10,8 @@ const envSchema = z.object({
   GATE_USERNAME: z.string().optional(),
   /** Optional: if set with GATE_USERNAME, entry screen requires this password */
   GATE_PASSWORD: z.string().optional(),
+  /** Optional: if set, all API requests (except /health) require x-api-key header */
+  API_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

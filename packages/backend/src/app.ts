@@ -13,6 +13,7 @@ import invoiceBatchRoutes from './services/invoice-batch/routes.js';
 import storeRoutes from './services/store/routes.js';
 import assetRoutes from './services/asset/routes.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
+import { apiKeyMiddleware } from './middleware/api-key.middleware.js';
 import { prisma } from './config/database.js';
 
 const app = express();
@@ -26,6 +27,17 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
+// Public health endpoints (no API key required)
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok' });
+});
+
+// API key required for all routes below
+app.use(apiKeyMiddleware);
+
 app.use('/api/auth', authRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/qr', qrRoutes);
@@ -33,14 +45,6 @@ app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/invoice-batches', invoiceBatchRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/assets', assetRoutes);
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
 
 app.post('/api/demo/delete-all-tickets', async (_req, res) => {
   try {
