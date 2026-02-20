@@ -25,6 +25,9 @@ async function main() {
   await prisma.wOComment.deleteMany();
   await prisma.workReportRow.deleteMany();
   await prisma.invoiceRow.deleteMany();
+  await prisma.invoiceBatchItem.deleteMany();
+  await prisma.workOrder.updateMany({ data: { invoiceBatchId: null } });
+  await prisma.invoiceBatch.deleteMany();
   await prisma.workOrder.deleteMany();
   await prisma.approvalRecord.deleteMany();
   await prisma.costEstimation.deleteMany();
@@ -44,18 +47,12 @@ async function main() {
   const retailA = await prisma.company.create({
     data: { name: 'Retail A', active: true },
   });
-  const retailB = await prisma.company.create({
-    data: { name: 'Retail B', active: true },
-  });
 
   const northRegion = await prisma.region.create({
     data: { companyId: retailA.id, name: 'North Region' },
   });
   const southRegion = await prisma.region.create({
     data: { companyId: retailA.id, name: 'South Region' },
-  });
-  const centralRegion = await prisma.region.create({
-    data: { companyId: retailB.id, name: 'Central Region' },
   });
 
   const storesRetailA: { id: number; name: string; regionId: number }[] = [];
@@ -92,25 +89,6 @@ async function main() {
   const store6South = storesRetailA[5];
   const store7South = storesRetailA[6];
   const store8South = storesRetailA[7];
-
-  const centralStore1 = await prisma.store.create({
-    data: {
-      companyId: retailB.id,
-      regionId: centralRegion.id,
-      name: 'Central Store 1',
-      address: 'Central Address 1',
-      active: true,
-    },
-  });
-  const centralStore2 = await prisma.store.create({
-    data: {
-      companyId: retailB.id,
-      regionId: centralRegion.id,
-      name: 'Central Store 2',
-      address: 'Central Address 2',
-      active: true,
-    },
-  });
 
   console.log('Creating internal users (Retail A)...');
 
@@ -159,17 +137,6 @@ async function main() {
   });
   const bod = await prisma.internalUser.create({
     data: { name: 'Zoran Tomašević', role: 'BOD', companyId: retailA.id, active: true },
-  });
-
-  console.log('Creating Retail B internal users...');
-  const smB1 = await prisma.internalUser.create({
-    data: { name: 'Retail B SM 1', role: 'SM', companyId: retailB.id, storeId: centralStore1.id, active: true },
-  });
-  const smB2 = await prisma.internalUser.create({
-    data: { name: 'Retail B SM 2', role: 'SM', companyId: retailB.id, storeId: centralStore2.id, active: true },
-  });
-  const amB = await prisma.internalUser.create({
-    data: { name: 'Retail B AM', role: 'AM', companyId: retailB.id, regionId: centralRegion.id, active: true },
   });
 
   console.log('Creating vendor companies and users...');
@@ -737,10 +704,10 @@ async function main() {
 
   console.log('Seed completed successfully.');
   console.log('Summary:');
-  console.log('  Companies:', 2);
-  console.log('  Regions:', 3);
-  console.log('  Stores:', 10);
-  console.log('  Internal users:', 18);
+  console.log('  Companies: 1 (Retail A only)');
+  console.log('  Regions: 2');
+  console.log('  Stores: 8');
+  console.log('  Internal users: 15');
   console.log('  Vendor companies:', 2);
   console.log('  Vendor users:', 7);
   console.log('  Price list items:', priceListData.length);

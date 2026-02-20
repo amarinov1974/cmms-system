@@ -175,7 +175,7 @@ const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'BOD'];
 router.get('/users/internal', requireGate, async (_req, res) => {
   try {
     const users = await prisma.internalUser.findMany({
-      where: { active: true },
+      where: { active: true, company: { name: 'Retail A' } },
       include: {
         company: true,
         store: true,
