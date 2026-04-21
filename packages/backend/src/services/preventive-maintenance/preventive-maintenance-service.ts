@@ -5,7 +5,6 @@
 
 import { prisma } from '../../config/database.js';
 import type { PmScheduleType } from '@prisma/client';
-// @ts-expect-error xlsx has no types
 import * as XLSX from 'xlsx';
 
 export interface ParsedPmRow {
