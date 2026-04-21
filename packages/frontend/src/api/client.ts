@@ -23,6 +23,10 @@ export const apiClient = axios.create({
 
 // Request interceptor: send x-session-id from localStorage for iOS/Safari compatibility
 apiClient.interceptors.request.use((config) => {
+  // FormData: remove Content-Type so axios sets multipart/form-data with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
+  }
   if (typeof window !== 'undefined') {
     const sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
     if (sessionId) {

@@ -6,12 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=backend & npm run dev --workspace=frontend",
+    "dev": "npm run dev --workspace=@cmms/backend & npm run dev --workspace=@cmms/frontend",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces",
-    "db:migrate": "npm run db:migrate --workspace=backend",
-    "db:seed": "npm run db:seed --workspace=backend",
-    "db:studio": "npm run db:studio --workspace=backend"
+    "db:migrate": "npm run db:migrate --workspace=@cmms/backend",
+    "db:seed": "npm run db:seed --workspace=@cmms/backend",
+    "db:studio": "npm run db:studio --workspace=@cmms/backend"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

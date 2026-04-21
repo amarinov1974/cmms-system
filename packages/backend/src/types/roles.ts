@@ -10,6 +10,7 @@ export const InternalRoles = {
   AREA_MAINTENANCE_MANAGER: 'AMM',
   SALES_DIRECTOR: 'D',
   MAINTENANCE_DIRECTOR: 'C2',
+  MAINTENANCE_ADMIN: 'C3',
   BOARD_OF_DIRECTORS: 'BOD',
 } as const;
 

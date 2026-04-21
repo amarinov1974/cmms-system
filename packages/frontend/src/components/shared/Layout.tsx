@@ -28,21 +28,28 @@ export function Layout({
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center flex-wrap gap-2">
-          <div>
-            {screenTitle != null ? (
-              <h1 className="text-xl font-bold text-gray-900">{screenTitle}</h1>
-            ) : (
-              <h1 className="text-xl font-bold text-gray-900">CMMS System</h1>
-            )}
-            {session != null && (
-              <p className="text-sm text-gray-600">
-                {session.userName} • {session.role === 'S1' ? 'Service Admin' : session.role === 'S2' ? 'Technician' : session.role === 'S3' ? 'Finance / Backoffice' : session.role === 'AMM' ? 'Area Maintenance Manager' : session.role}
-                {session.companyName != null ? ` • ${session.companyName}` : ''}
-                {session.servicedCompanyName != null ? ` • Serviced: ${session.servicedCompanyName}` : ''}
-                {session.storeName != null ? ` • Store: ${session.storeName}` : ''}
-                {session.regionName != null ? ` • Region: ${session.regionName}` : ''}
-              </p>
-            )}
+          <div className="flex items-center gap-3">
+            <img
+              src="/ntl-logo.png"
+              alt="NTL logo"
+              className="h-10 w-auto object-contain"
+            />
+            <div>
+              {screenTitle != null ? (
+                <h1 className="text-xl font-bold text-gray-900">{screenTitle}</h1>
+              ) : (
+                <h1 className="text-xl font-bold text-gray-900">CMMS System</h1>
+              )}
+              {session != null && (
+                <p className="text-sm text-gray-600">
+                  {session.userName} • {session.role === 'S1' ? 'Service Admin' : session.role === 'S2' ? 'Technician' : session.role === 'S3' ? 'Finance / Backoffice' : session.role === 'AMM' ? 'Area Maintenance Manager' : session.role === 'C3' ? 'Maintenance Admin' : session.role}
+                  {session.companyName != null ? ` • ${session.companyName}` : ''}
+                  {session.servicedCompanyName != null ? ` • Serviced: ${session.servicedCompanyName}` : ''}
+                  {session.storeName != null ? ` • Store: ${session.storeName}` : ''}
+                  {session.regionName != null ? ` • Region: ${session.regionName}` : ''}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {backLink != null && (

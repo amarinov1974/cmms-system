@@ -12,6 +12,7 @@ import workOrderRoutes from './services/work-order/routes.js';
 import invoiceBatchRoutes from './services/invoice-batch/routes.js';
 import storeRoutes from './services/store/routes.js';
 import assetRoutes from './services/asset/routes.js';
+import preventiveMaintenanceRoutes from './services/preventive-maintenance/routes.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { apiKeyMiddleware } from './middleware/api-key.middleware.js';
 import { prisma } from './config/database.js';
@@ -45,6 +46,7 @@ app.use('/api/work-orders', workOrderRoutes);
 app.use('/api/invoice-batches', invoiceBatchRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/assets', assetRoutes);
+app.use('/api/preventive-maintenance', preventiveMaintenanceRoutes);
 
 app.post('/api/demo/delete-all-tickets', async (_req, res) => {
   try {

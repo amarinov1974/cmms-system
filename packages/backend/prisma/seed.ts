@@ -34,6 +34,7 @@ async function main() {
   await prisma.ticketComment.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.asset.deleteMany();
+  await prisma.preventiveMaintenancePlan.deleteMany();
   await prisma.internalUser.deleteMany();
   await prisma.vendorUser.deleteMany();
   await prisma.vendorPriceListItem.deleteMany();
@@ -137,6 +138,9 @@ async function main() {
   });
   const bod = await prisma.internalUser.create({
     data: { name: 'Zoran Tomašević', role: 'BOD', companyId: retailA.id, active: true },
+  });
+  const c3 = await prisma.internalUser.create({
+    data: { name: 'Ante Jurić', role: 'C3', companyId: retailA.id, active: true },
   });
 
   console.log('Creating vendor companies and users...');
@@ -707,7 +711,7 @@ async function main() {
   console.log('  Companies: 1 (Retail A only)');
   console.log('  Regions: 2');
   console.log('  Stores: 8');
-  console.log('  Internal users: 15');
+  console.log('  Internal users: 16');
   console.log('  Vendor companies:', 2);
   console.log('  Vendor users:', 7);
   console.log('  Price list items:', priceListData.length);

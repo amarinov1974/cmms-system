@@ -63,6 +63,13 @@ export function AccessCodeGate({ children }: AccessCodeGateProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+        <div className="flex items-center justify-center mb-4">
+          <img
+            src="/ntl-logo.png"
+            alt="NTL logo"
+            className="h-16 w-auto object-contain"
+          />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900 mb-2">CMMS System</h1>
         <p className="text-gray-600 mb-6">Enter access code to continue</p>
         <form onSubmit={handleSubmit}>

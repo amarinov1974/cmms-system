@@ -24,6 +24,7 @@ model Company {
   stores        Store[]
   internalUsers InternalUser[]
   tickets       Ticket[]
+  preventiveMaintenancePlans PreventiveMaintenancePlan[]
 
   @@map("companies")
 }
@@ -38,6 +39,7 @@ model VendorCompany {
   priceList     VendorPriceListItem[]
   workOrders    WorkOrder[]
   invoiceBatches InvoiceBatch[]
+  preventiveMaintenancePlans PreventiveMaintenancePlan[]
 
   @@map("vendor_companies")
 }
@@ -70,6 +72,7 @@ model Store {
   tickets       Ticket[]
   assets        Asset[]
   internalUsers InternalUser[]
+  preventiveMaintenancePlans PreventiveMaintenancePlan[]
 
   @@index([companyId])
   @@index([regionId])
@@ -86,6 +89,7 @@ enum InternalRole {
   AMM // Area Maintenance Manager
   D   // Sales Director
   C2  // Maintenance Director
+  C3  // Maintenance Admin (Preventive Maintenance)
   BOD // Board of Directors
 }
 
@@ -109,6 +113,7 @@ model InternalUser {
   ticketsClarificationRequested Ticket[] @relation("ClarificationRequestedBy")
   approvalRecords ApprovalRecord[]
   ticketComments  TicketComment[]
+  preventiveMaintenancePlansCreated PreventiveMaintenancePlan[]
 
   @@index([companyId])
   @@index([role])
@@ -132,6 +137,7 @@ model VendorUser {
   vendorCompany     VendorCompany @relation(fields: [vendorCompanyId], references: [id])
   workOrders        WorkOrder[]   @relation("WorkOrderTechnician")
   invoiceBatchesCreated InvoiceBatch[]
+  preventiveMaintenancePlans PreventiveMaintenancePlan[]
 
   @@index([vendorCompanyId])
   @@index([role])
@@ -153,6 +159,7 @@ model Asset {
   store      Store        @relation(fields: [storeId], references: [id])
   tickets    Ticket[]
   workOrders WorkOrder[]
+  preventiveMaintenancePlans PreventiveMaintenancePlan[]
 
   @@index([storeId])
   @@map("assets")
@@ -556,4 +563,41 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([createdAt])
   @@map("audit_log")
+}
+
+// ============================================================================
+// PREVENTIVE MAINTENANCE PLAN
+// ============================================================================
+
+enum PmScheduleType {
+  INTERVAL
+  SPECIFIC_DATES
+}
+
+model PreventiveMaintenancePlan {
+  id               Int            @id @default(autoincrement())
+  companyId        Int            @map("company_id")
+  assetId          Int?           @map("asset_id")
+  assetName        String         @db.VarChar(500) @map("asset_name")
+  storeId          Int?           @map("store_id")
+  taskDescription  String         @db.Text @map("task_description")
+  vendorCompanyId  Int            @map("vendor_company_id")
+  vendorUserId     Int?           @map("vendor_user_id")
+  scheduleType     PmScheduleType @map("schedule_type")
+  intervalDays     Int?           @map("interval_days")
+  specificDates    String?        @db.Text @map("specific_dates") // Comma-separated dates
+  createdById      Int?           @map("created_by_id")
+  createdAt        DateTime       @default(now()) @map("created_at")
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  asset         Asset?         @relation(fields: [assetId], references: [id], onDelete: SetNull)
+  store         Store?         @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  vendorCompany VendorCompany  @relation(fields: [vendorCompanyId], references: [id])
+  vendorUser    VendorUser?    @relation(fields: [vendorUserId], references: [id], onDelete: SetNull)
+  createdBy     InternalUser?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([assetId])
+  @@index([vendorCompanyId])
+  @@map("preventive_maintenance_plans")
 }

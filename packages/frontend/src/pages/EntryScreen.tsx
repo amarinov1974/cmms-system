@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI, type User } from '../api/auth';
 import { apiClient, SESSION_STORAGE_KEY } from '../api/client';
 
-const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'BOD'];
+const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'C3', 'BOD'];
 
 function sortInternalUsers(users: User[]): User[] {
   return [...users].sort((a, b) => {
@@ -147,6 +147,7 @@ export function EntryScreen() {
       else if (role === 'AMM') navigate('/amm');
       else if (role === 'D' || role === 'C2' || role === 'BOD')
         navigate('/director');
+      else if (role === 'C3') navigate('/c3');
       else if (role === 'S1') navigate('/vendor/s1');
       else if (role === 'S2') navigate('/vendor/s2');
       else if (role === 'S3') navigate('/vendor/s3');
@@ -195,6 +196,13 @@ export function EntryScreen() {
       )}
       {showGateForm && (
         <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+          <div className="flex items-center justify-center mb-4">
+            <img
+              src="/ntl-logo.png"
+              alt="NTL logo"
+              className="h-16 w-auto object-contain"
+            />
+          </div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">CMMS System</h1>
           <p className="text-gray-600 mb-6">Sign in to continue</p>
           <form
@@ -258,6 +266,13 @@ export function EntryScreen() {
         </div>
       )}
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
+        <div className="flex items-center justify-center mb-4">
+          <img
+            src="/ntl-logo.png"
+            alt="NTL logo"
+            className="h-16 w-auto object-contain"
+          />
+        </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">CMMS System</h1>
         <p className="text-gray-600 mb-8">Demo Login - Select User</p>
 
