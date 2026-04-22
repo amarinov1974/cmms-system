@@ -13,14 +13,14 @@ import { QrScannerModal } from '../../../components/QrScannerModal';
 export function CheckInModal({ workOrderId, declaredTechCount, onClose, onSuccess, }) {
     const queryClient = useQueryClient();
     const [qrToken, setQrToken] = useState('');
-    const [checkInSuccess, setCheckInSuccess] = useState(false);
     const [showScanner, setShowScanner] = useState(false);
     const checkInMutation = useMutation({
         mutationFn: workOrdersAPI.checkIn,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['work-orders'] });
             queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
-            setCheckInSuccess(true);
+            onSuccess?.();
+            onClose();
         },
     });
     const returnMutation = useMutation({
@@ -46,13 +46,6 @@ export function CheckInModal({ workOrderId, declaredTechCount, onClose, onSucces
     const handleReturnToStore = () => {
         returnMutation.mutate();
     };
-    const handleCloseAfterSuccess = () => {
-        onSuccess?.();
-        onClose();
-    };
-    if (checkInSuccess) {
-        return (_jsx("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50", children: _jsxs("div", { className: "bg-white rounded-lg max-w-md w-full", children: [_jsxs("div", { className: "p-6 border-b border-gray-200", children: [_jsx("h2", { className: "text-2xl font-bold text-gray-900", children: "Check In" }), _jsxs("p", { className: "text-sm text-gray-600", children: ["WO #", workOrderId] })] }), _jsx("div", { className: "p-6 space-y-4", children: _jsx("div", { className: "bg-green-50 border border-green-200 rounded-lg p-4", children: _jsx("p", { className: "text-sm text-green-800", children: "You are checked in now! When done with work, open the work order to fill out work specification and check out." }) }) }), _jsx("div", { className: "p-6 border-t border-gray-200", children: _jsx(Button, { type: "button", onClick: handleCloseAfterSuccess, className: "w-full", children: "Close" }) })] }) }));
-    }
     return (_jsx("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50", children: _jsxs("div", { className: "bg-white rounded-lg max-w-md w-full", children: [_jsxs("div", { className: "p-6 border-b border-gray-200", children: [_jsx("h2", { className: "text-2xl font-bold text-gray-900", children: "Check In" }), _jsxs("p", { className: "text-sm text-gray-600", children: ["WO #", workOrderId] })] }), _jsxs("div", { className: "p-6 space-y-4", children: [_jsx("div", { className: "bg-blue-50 border border-blue-200 rounded-lg p-4", children: _jsxs("p", { className: "text-sm text-blue-700", children: [_jsx("strong", { children: "Steps:" }), " The store has declared the number of technicians. You can ", _jsx("strong", { children: "confirm" }), " (scan QR and check in) or ", _jsx("strong", { children: "return to store" }), " so they can generate a new QR with the correct number."] }) }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Number of technicians (declared by store)" }), declaredTechCount != null && declaredTechCount >= 1 ? (_jsxs("p", { className: "p-3 bg-gray-100 rounded-lg text-gray-800 font-medium", children: [declaredTechCount, " \u2014 cannot be changed here. Return to store if incorrect."] })) : (_jsx("p", { className: "text-sm text-amber-700", children: "Store has not generated a QR yet. Ask the store to generate the check-in QR code (with technician count) first." }))] }), _jsxs("div", { children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "QR Code Token * (scan or paste)" }), _jsxs("div", { className: "flex gap-2", children: [_jsx("input", { type: "text", value: qrToken, onChange: (e) => setQrToken(e.target.value), placeholder: "Scan QR or paste token from store...", className: "flex-1 min-w-0 p-3 border border-gray-300 rounded-lg", autoFocus: true, disabled: !techCountValid }), _jsx(Button, { type: "button", variant: "secondary", onClick: () => setShowScanner(true), disabled: !techCountValid, title: "Open camera to scan QR on store's phone", children: "Scan" })] }), _jsx("p", { className: "text-xs text-gray-500 mt-1", children: "Scan the QR on the store's phone or paste the token. Expires in 5 minutes." })] }), showScanner && (_jsx(QrScannerModal, { title: "Scan Check-In QR", onScan: (token) => {
                                 setQrToken(token);
                                 setShowScanner(false);
