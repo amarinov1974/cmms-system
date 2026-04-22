@@ -291,6 +291,31 @@ async function main() {
       },
     });
   }
+  // ThermaCore billing rules: not selectable in UI; applied automatically per intervention
+  await prisma.vendorPriceListItem.create({
+    data: {
+      vendorId: thermacore.id,
+      category: 'Fixed Fees',
+      description: 'Arrival to location',
+      unit: 'arrival',
+      pricePerUnit: 55,
+      active: true,
+      selectableInUI: false,
+      unitMinutes: null,
+    },
+  });
+  await prisma.vendorPriceListItem.create({
+    data: {
+      vendorId: thermacore.id,
+      category: 'Labor',
+      description: 'Service time (15 min units)',
+      unit: '15 min',
+      pricePerUnit: 11,
+      active: true,
+      selectableInUI: false,
+      unitMinutes: 15,
+    },
+  });
 
   console.log('Creating demo assets (5 per store for first 4 stores)...');
 

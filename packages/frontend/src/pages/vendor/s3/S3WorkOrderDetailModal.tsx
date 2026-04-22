@@ -142,22 +142,36 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
 
   const arrivalItem = useMemo(
     () =>
-      selectablePriceList.find(
-        (p) =>
-          p.description.toLowerCase().includes('arrival') ||
-          (p.category === 'Fixed Fees' && p.unit.toLowerCase().includes('visit'))
-      ) ?? selectablePriceList.find((p) => p.category === 'Fixed Fees'),
-    [selectablePriceList]
+      priceList.find((p) => {
+        const desc = p.description.toLowerCase();
+        const category = p.category.toLowerCase();
+        const unit = p.unit.toLowerCase();
+        return (
+          desc.includes('arrival') ||
+          desc.includes('dolazak') ||
+          (category === 'fixed fees' && (unit.includes('visit') || unit.includes('arrival')))
+        );
+      }) ??
+      priceList.find((p) => p.category.toLowerCase() === 'fixed fees'),
+    [priceList]
   );
 
   const laborItem = useMemo(
     () =>
-      selectablePriceList.find(
-        (p) =>
-          p.category === 'Labor' &&
-          (p.description.toLowerCase().includes('service hours') || p.description.toLowerCase().includes('hour'))
-      ) ?? selectablePriceList.find((p) => p.category === 'Labor'),
-    [selectablePriceList]
+      priceList.find((p) => {
+        const desc = p.description.toLowerCase();
+        const category = p.category.toLowerCase();
+        return (
+          category === 'labor' &&
+          (p.unitMinutes != null ||
+            desc.includes('service time') ||
+            desc.includes('service hours') ||
+            desc.includes('hour') ||
+            desc.includes('radni sati') ||
+            desc.includes('vrijeme servisa'))
+        );
+      }) ?? priceList.find((p) => p.category.toLowerCase() === 'labor'),
+    [priceList]
   );
 
   useEffect(() => {
