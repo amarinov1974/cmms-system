@@ -94,7 +94,7 @@ async function main() {
   console.log('Creating internal users (Retail A)...');
 
   const sm1 = await prisma.internalUser.create({
-    data: { name: 'Lorena Petrović', role: 'SM', companyId: retailA.id, storeId: store1North.id, active: true },
+    data: { name: 'Ivana Petrović', role: 'SM', companyId: retailA.id, storeId: store1North.id, active: true },
   });
   const sm2 = await prisma.internalUser.create({
     data: { name: 'Tomislav Knežević', role: 'SM', companyId: retailA.id, storeId: store2North.id, active: true },

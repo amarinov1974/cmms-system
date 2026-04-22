@@ -15,7 +15,7 @@
     "db:seed-pricelist-excel": "tsx scripts/seed-pricelist-excel.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.16.0",
+    "@prisma/client": "^6.19.0",
     "cookie-parser": "^1.4.6",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -36,7 +36,7 @@
     "@types/node": "^20.10.6",
     "@types/pdfkit": "^0.17.5",
     "@types/uuid": "^9.0.7",
-    "prisma": "^6.16.0",
+    "prisma": "^6.19.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
     "vitest": "^1.1.0",

@@ -82,16 +82,18 @@ export async function createBatch(
     const completionDate = wo.checkoutTs
       ? wo.checkoutTs.toISOString().slice(0, 10)
       : wo.updatedAt.toISOString().slice(0, 10);
-    const description =
-      wo.invoiceRows?.[0]?.description ?? `Work order ${wo.id}`;
     const storeName = (wo as { ticket?: { store?: { name: string } } }).ticket?.store?.name ?? '';
+    const interventionType =
+      (wo as { ticket?: { urgent?: boolean } }).ticket?.urgent === true
+        ? 'Hitna intervencija'
+        : 'Non-urgent intervencija';
     lineItems.push({
       workOrderId: wo.id,
       ticketId: wo.ticketId,
       storeName,
       completionDate,
       approvedAmount: woTotal,
-      description: String(description).slice(0, 80),
+      interventionType,
     });
   }
 

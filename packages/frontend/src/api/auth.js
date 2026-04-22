@@ -3,6 +3,20 @@
  */
 import { apiClient, SESSION_STORAGE_KEY } from './client';
 export const authAPI = {
+    getGateStatus: async () => {
+        const { data } = await apiClient.get('/auth/gate-status');
+        return data;
+    },
+    gateLogin: async (username, password) => {
+        const { data } = await apiClient.post('/auth/gate-login', {
+            username,
+            password,
+        });
+        return data;
+    },
+    gateLogout: async () => {
+        await apiClient.post('/auth/gate-logout');
+    },
     demoLogin: async (request) => {
         const { data } = await apiClient.post('/auth/demo-login', request);
         return data;

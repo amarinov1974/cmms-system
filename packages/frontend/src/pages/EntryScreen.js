@@ -1,4 +1,4 @@
-import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 /**
  * Entry Screen
  * Demo login - select user type and user
@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI } from '../api/auth';
 import { apiClient, SESSION_STORAGE_KEY } from '../api/client';
-const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'BOD'];
+const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'C3', 'BOD'];
 function sortInternalUsers(users) {
     return [...users].sort((a, b) => {
         const roleIndexA = INTERNAL_ROLE_ORDER.indexOf(a.role);
@@ -40,15 +40,38 @@ export function EntryScreen() {
     const queryClient = useQueryClient();
     const [userType, setUserType] = useState('INTERNAL');
     const [selectedUserId, setSelectedUserId] = useState(null);
+    const [gateUsername, setGateUsername] = useState('');
+    const [gatePassword, setGatePassword] = useState('');
+    const [gateError, setGateError] = useState(null);
+    const { data: gateStatus, isLoading: gateLoading, refetch: refetchGate, } = useQuery({
+        queryKey: ['gate-status'],
+        queryFn: authAPI.getGateStatus,
+    });
+    const gateEnabled = gateStatus?.gateEnabled ?? false;
+    const gateAuthenticated = gateStatus?.authenticated ?? false;
+    const showGateForm = gateEnabled && !gateAuthenticated;
+    const showDemoForm = !gateEnabled || gateAuthenticated;
+    const gateLoginMutation = useMutation({
+        mutationFn: () => authAPI.gateLogin(gateUsername, gatePassword),
+        onSuccess: (data) => {
+            setGateError(null);
+            setGateUsername('');
+            setGatePassword('');
+            refetchGate();
+        },
+        onError: (err) => {
+            setGateError(err?.response?.data?.error ?? 'Login failed. Please try again.');
+        },
+    });
     const { data: internalUsers, isLoading: internalLoading, isError: internalError, error: internalErrorDetail, refetch: refetchInternal, } = useQuery({
         queryKey: ['internal-users'],
         queryFn: authAPI.getInternalUsers,
-        enabled: userType === 'INTERNAL',
+        enabled: showDemoForm && userType === 'INTERNAL',
     });
     const { data: vendorUsers, isLoading: vendorLoading, isError: vendorError, error: vendorErrorDetail, refetch: refetchVendor, } = useQuery({
         queryKey: ['vendor-users'],
         queryFn: authAPI.getVendorUsers,
-        enabled: userType === 'VENDOR',
+        enabled: showDemoForm && userType === 'VENDOR',
     });
     const usersLoading = userType === 'INTERNAL' ? internalLoading : vendorLoading;
     const usersError = userType === 'INTERNAL' ? internalError : vendorError;
@@ -98,6 +121,8 @@ export function EntryScreen() {
                 navigate('/amm');
             else if (role === 'D' || role === 'C2' || role === 'BOD')
                 navigate('/director');
+            else if (role === 'C3')
+                navigate('/c3');
             else if (role === 'S1')
                 navigate('/vendor/s1');
             else if (role === 'S2')
@@ -129,20 +154,27 @@ export function EntryScreen() {
             return;
         deleteAllMutation.mutate();
     };
-    return (_jsxs("div", { className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative", children: [_jsx("button", { type: "button", onClick: handleDeleteAllTickets, disabled: deleteAllMutation.isPending, className: "fixed top-4 right-4 z-10 py-2 px-4 rounded-lg border-2 border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm", children: deleteAllMutation.isPending ? 'Deleting...' : 'Delete all tickets' }), deleteAllMutation.isError && (_jsx("div", { className: "fixed top-14 right-4 z-10 max-w-xs text-red-600 text-sm bg-white border border-red-200 rounded-lg p-2 shadow", children: deleteAllMutation.error?.response?.data?.error ?? 'Failed to delete' })), _jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-8", children: "Demo Login - Select User" }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "User Type" }), _jsxs("div", { className: "flex gap-4", children: [_jsx("button", { type: "button", onClick: () => {
-                                            setUserType('INTERNAL');
-                                            setSelectedUserId(null);
-                                        }, className: `flex-1 py-2 px-4 rounded-lg border-2 transition ${userType === 'INTERNAL'
-                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                            : 'border-gray-300 hover:border-gray-400'}`, children: "Internal User" }), _jsx("button", { type: "button", onClick: () => {
-                                            setUserType('VENDOR');
-                                            setSelectedUserId(null);
-                                        }, className: `flex-1 py-2 px-4 rounded-lg border-2 transition ${userType === 'VENDOR'
-                                            ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                            : 'border-gray-300 hover:border-gray-400'}`, children: "Vendor User" })] })] }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Select User" }), usersLoading && (_jsx("p", { className: "text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2", children: "Loading users\u2026" })), usersError && (_jsxs("div", { className: "text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-2", children: [_jsx("p", { children: "Could not load users. Is the backend running at the API URL?" }), _jsx("p", { className: "mt-1 text-xs opacity-90", children: usersErrorDetail?.response?.data?.error ??
-                                            usersErrorDetail?.message ??
-                                            String(usersErrorDetail) }), _jsx("button", { type: "button", onClick: () => refetchUsers(), className: "mt-2 text-sm font-medium text-red-800 underline hover:no-underline", children: "Retry" })] })), !usersLoading && !usersError && Array.isArray(users) && users.length === 0 && (_jsxs("p", { className: "text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2", children: ["No users in database. Run: ", _jsx("code", { className: "bg-amber-100 px-1 rounded", children: "npm run db:seed" }), " in the backend package."] })), _jsxs("select", { value: selectedUserId ?? '', onChange: (e) => setSelectedUserId(e.target.value ? Number(e.target.value) : null), disabled: usersLoading || usersError, className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed", children: [_jsx("option", { value: "", children: "-- Select a user --" }), users?.map((user) => (_jsxs("option", { value: user.id, children: [user.name, " (", user.role, ")", user.storeName != null ? ` - ${user.storeName}` : '', user.regionName != null ? ` - ${user.regionName}` : '', user.vendorCompanyName != null
-                                                ? ` - ${user.vendorCompanyName}`
-                                                : ''] }, user.id)))] })] }), _jsx("button", { type: "button", onClick: handleLogin, disabled: selectedUserId == null || loginMutation.isPending, className: "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition", children: loginMutation.isPending ? 'Logging in...' : 'Login' }), loginMutation.isError && (_jsx("p", { className: "mt-4 text-red-600 text-sm text-center", children: "Login failed. Please try again." })), _jsx("p", { className: "mt-6 text-xs text-gray-500 text-center", children: "Demo Mode - No password required" })] })] }));
+    const handleGateLogout = async () => {
+        await authAPI.gateLogout();
+        refetchGate();
+    };
+    return (_jsxs("div", { className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative", children: [gateLoading && (_jsx("div", { className: "absolute inset-0 bg-white/80 flex items-center justify-center z-20", children: _jsx("p", { className: "text-gray-600", children: "Loading\u2026" }) })), showGateForm && (_jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("div", { className: "flex items-center justify-center mb-4", children: _jsx("img", { src: "/ntl-logo.png", alt: "NTL logo", className: "h-16 w-auto object-contain" }) }), _jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-6", children: "Sign in to continue" }), _jsxs("form", { onSubmit: (e) => {
+                            e.preventDefault();
+                            gateLoginMutation.mutate();
+                        }, children: [_jsxs("div", { className: "mb-4", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Username" }), _jsx("input", { type: "text", value: gateUsername, onChange: (e) => setGateUsername(e.target.value), required: true, autoComplete: "username", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Password" }), _jsx("input", { type: "password", value: gatePassword, onChange: (e) => setGatePassword(e.target.value), required: true, autoComplete: "current-password", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), gateError && (_jsx("p", { className: "mb-4 text-red-600 text-sm", children: gateError })), _jsx("button", { type: "submit", disabled: gateLoginMutation.isPending, className: "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition", children: gateLoginMutation.isPending ? 'Signing in...' : 'Sign in' })] })] })), showDemoForm && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: handleDeleteAllTickets, disabled: deleteAllMutation.isPending, className: "fixed top-4 right-4 z-10 py-2 px-4 rounded-lg border-2 border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm", children: deleteAllMutation.isPending ? 'Deleting...' : 'Delete all tickets' }), deleteAllMutation.isError && (_jsx("div", { className: "fixed top-14 right-4 z-10 max-w-xs text-red-600 text-sm bg-white border border-red-200 rounded-lg p-2 shadow", children: deleteAllMutation.error?.response?.data?.error ?? 'Failed to delete' })), _jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("div", { className: "flex items-center justify-center mb-4", children: _jsx("img", { src: "/ntl-logo.png", alt: "NTL logo", className: "h-16 w-auto object-contain" }) }), _jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-8", children: "Demo Login - Select User" }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "User Type" }), _jsxs("div", { className: "flex gap-4", children: [_jsx("button", { type: "button", onClick: () => {
+                                                    setUserType('INTERNAL');
+                                                    setSelectedUserId(null);
+                                                }, className: `flex-1 py-2 px-4 rounded-lg border-2 transition ${userType === 'INTERNAL'
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                    : 'border-gray-300 hover:border-gray-400'}`, children: "Internal User" }), _jsx("button", { type: "button", onClick: () => {
+                                                    setUserType('VENDOR');
+                                                    setSelectedUserId(null);
+                                                }, className: `flex-1 py-2 px-4 rounded-lg border-2 transition ${userType === 'VENDOR'
+                                                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                                    : 'border-gray-300 hover:border-gray-400'}`, children: "Vendor User" })] })] }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Select User" }), usersLoading && (_jsx("p", { className: "text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2", children: "Loading users\u2026" })), usersError && (_jsxs("div", { className: "text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 mb-2", children: [_jsx("p", { children: "Could not load users. Is the backend running at the API URL?" }), _jsx("p", { className: "mt-1 text-xs opacity-90", children: usersErrorDetail?.response?.data?.error ??
+                                                    usersErrorDetail?.message ??
+                                                    String(usersErrorDetail) }), _jsx("button", { type: "button", onClick: () => refetchUsers(), className: "mt-2 text-sm font-medium text-red-800 underline hover:no-underline", children: "Retry" })] })), !usersLoading && !usersError && Array.isArray(users) && users.length === 0 && (_jsxs("p", { className: "text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3 mb-2", children: ["No users in database. Run: ", _jsx("code", { className: "bg-amber-100 px-1 rounded", children: "npm run db:seed" }), " in the backend package."] })), _jsxs("select", { value: selectedUserId ?? '', onChange: (e) => setSelectedUserId(e.target.value ? Number(e.target.value) : null), disabled: usersLoading || usersError, className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed", children: [_jsx("option", { value: "", children: "-- Select a user --" }), users?.map((user) => (_jsxs("option", { value: user.id, children: [user.name, " (", user.role, ")", user.storeName != null ? ` - ${user.storeName}` : '', user.regionName != null ? ` - ${user.regionName}` : '', user.vendorCompanyName != null
+                                                        ? ` - ${user.vendorCompanyName}`
+                                                        : ''] }, user.id)))] })] }), _jsx("button", { type: "button", onClick: handleLogin, disabled: selectedUserId == null || loginMutation.isPending, className: "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition", children: loginMutation.isPending ? 'Logging in...' : 'Login' }), loginMutation.isError && (_jsx("p", { className: "mt-4 text-red-600 text-sm text-center", children: "Login failed. Please try again." })), _jsx("p", { className: "mt-6 text-xs text-gray-500 text-center", children: "Demo Mode - No password required" }), gateEnabled && gateAuthenticated && (_jsx("button", { type: "button", onClick: handleGateLogout, className: "mt-4 w-full text-sm text-gray-500 hover:text-gray-700 underline", children: "Sign out (gate)" }))] })] }))] }));
 }
 export default EntryScreen;

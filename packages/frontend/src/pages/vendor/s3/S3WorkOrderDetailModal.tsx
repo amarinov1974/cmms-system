@@ -125,6 +125,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
     wo?.currentStatus === 'Service Completed' || wo?.currentStatus === 'Cost Revision Requested';
   const isOwner = session?.userId != null && wo?.currentOwnerId === session.userId;
   const canEditAndSubmit = isEditable && isOwner;
+  const techCount = Math.max(1, wo?.declaredTechCount ?? 1);
 
   const categories = useMemo(() => {
     const set = new Set(selectablePriceList.map((p) => p.category));
@@ -174,29 +175,66 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
     [priceList]
   );
 
+  const isServiceTimeInvoiceRow = (row: Pick<InvoiceRowInput, 'description' | 'priceListItemId'>): boolean => {
+    const desc = row.description.toLowerCase();
+    if (
+      desc.includes('service time') ||
+      desc.includes('service hours') ||
+      desc.includes('radni sati') ||
+      desc.includes('vrijeme servisa')
+    ) {
+      return true;
+    }
+    if (row.priceListItemId == null) return false;
+    const item = priceList.find((p) => p.id === row.priceListItemId);
+    return (item?.unitMinutes ?? 0) > 0;
+  };
+
+  const normalizeServiceTimeRowsPerTechnician = (rows: InvoiceRowInput[]): InvoiceRowInput[] => {
+    if (techCount <= 1) return rows;
+    const serviceRows = rows.filter((row) => isServiceTimeInvoiceRow(row));
+    if (serviceRows.length === 0 || serviceRows.length >= techCount) return rows;
+
+    const firstServiceIndex = rows.findIndex((row) => isServiceTimeInvoiceRow(row));
+    if (firstServiceIndex < 0) return rows;
+
+    const additionalRows = Array.from({ length: techCount - serviceRows.length }, () => ({
+      ...serviceRows[0],
+    }));
+    const nonServiceRowsAfterFirst = rows
+      .slice(firstServiceIndex)
+      .filter((row) => !isServiceTimeInvoiceRow(row));
+
+    return [
+      ...rows.slice(0, firstServiceIndex),
+      ...serviceRows,
+      ...additionalRows,
+      ...nonServiceRowsAfterFirst,
+    ];
+  };
+
   useEffect(() => {
     if (wo == null || priceList.length === 0 || initialized) return;
     const draft = getS3WODraft(workOrderId);
     if (draft?.invoiceRows != null && draft.invoiceRows.length > 0) {
-      setInvoiceRows(draft.invoiceRows);
+      setInvoiceRows(normalizeServiceTimeRowsPerTechnician(draft.invoiceRows));
       setInitialized(true);
       return;
     }
     if (wo.invoiceRows != null && wo.invoiceRows.length > 0) {
-      setInvoiceRows(
-        wo.invoiceRows.map((r) => {
-          const fromList = r.priceListItemId != null;
-          return {
-            description: r.description,
-            unit: r.unit,
-            quantity: r.quantity,
-            pricePerUnit: r.pricePerUnit,
-            priceListItemId: r.priceListItemId ?? undefined,
-            isFromPriceList: fromList,
-            isNotInPricelist: !fromList && r.description.trim() !== '',
-          };
-        })
-      );
+      const mappedRows = wo.invoiceRows.map((r) => {
+        const fromList = r.priceListItemId != null;
+        return {
+          description: r.description,
+          unit: r.unit,
+          quantity: r.quantity,
+          pricePerUnit: r.pricePerUnit,
+          priceListItemId: r.priceListItemId ?? undefined,
+          isFromPriceList: fromList,
+          isNotInPricelist: !fromList && r.description.trim() !== '',
+        };
+      });
+      setInvoiceRows(normalizeServiceTimeRowsPerTechnician(mappedRows));
     } else {
       const visitPairs = wo.visitPairs;
       // Arrival count = number of site visits (supports many visits when S2 repeatedly chooses "follow up visit needed")
@@ -229,14 +267,16 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
               wo.checkinTs ?? null,
               wo.checkoutTs ?? null
             );
-            rows.push({
-              description: item.description,
-              unit: item.unit,
-              quantity: units,
-              pricePerUnit: item.pricePerUnit,
-              priceListItemId: item.id,
-              isFromPriceList: true,
-            });
+            for (let i = 0; i < techCount; i++) {
+              rows.push({
+                description: item.description,
+                unit: item.unit,
+                quantity: units,
+                pricePerUnit: item.pricePerUnit,
+                priceListItemId: item.id,
+                isFromPriceList: true,
+              });
+            }
           }
         }
       } else {
@@ -250,7 +290,6 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
             isFromPriceList: true,
           });
         }
-        const techCount = wo.declaredTechCount ?? 1;
         if (laborItem && (totalLaborH > 0 || techCount > 0)) {
           for (let i = 0; i < techCount; i++) {
             rows.push({
@@ -277,7 +316,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
       setInvoiceRows(rows);
     }
     setInitialized(true);
-  }, [wo, priceList, autoApplyItems, arrivalItem, laborItem, initialized]);
+  }, [wo, priceList, autoApplyItems, arrivalItem, laborItem, initialized, techCount]);
 
   const submitMutation = useMutation({
     mutationFn: workOrdersAPI.submitCostProposal,
@@ -353,15 +392,19 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
         !Number.isNaN(r.pricePerUnit)
     );
 
-  const numAutoRows =
-    autoApplyItems.length > 0
-      ? autoApplyItems.length
-      : (arrivalItem ? 1 : 0) +
-        (laborItem && (wo?.declaredTechCount ?? 1) > 0 ? (wo?.declaredTechCount ?? 1) : 0);
-
   const isServiceTimeRow = (index: number): boolean => {
     const row = invoiceRows[index];
-    if (row?.priceListItemId == null) return false;
+    if (!row) return false;
+    const desc = row.description.toLowerCase();
+    if (
+      desc.includes('service time') ||
+      desc.includes('service hours') ||
+      desc.includes('radni sati') ||
+      desc.includes('vrijeme servisa')
+    ) {
+      return true;
+    }
+    if (row.priceListItemId == null) return false;
     const item = priceList.find((p) => p.id === row.priceListItemId);
     return (item?.unitMinutes ?? 0) > 0;
   };
@@ -369,9 +412,29 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
   /** Arrival-to-location row: auto-applied, quantity always 1 (not editable in Service Completed) */
   const isArrivalRow = (index: number): boolean => {
     const row = invoiceRows[index];
-    if (row?.priceListItemId == null) return false;
+    if (!row) return false;
+    const desc = row.description.toLowerCase();
+    if (desc.includes('arrival') || desc.includes('dolazak')) return true;
+    if (row.priceListItemId == null) return false;
     const item = priceList.find((p) => p.id === row.priceListItemId);
     return item?.selectableInUI === false && (item?.unitMinutes ?? 0) === 0;
+  };
+
+  const isAutoGeneratedRow = (index: number): boolean =>
+    isArrivalRow(index) || isServiceTimeRow(index);
+
+  const isAutoGeneratedInvoiceRowReadonly = (row: { description: string; unit: string }): boolean => {
+    const desc = row.description.toLowerCase();
+    const unit = row.unit.toLowerCase();
+    return (
+      desc.includes('arrival') ||
+      desc.includes('dolazak') ||
+      desc.includes('service time') ||
+      desc.includes('service hours') ||
+      desc.includes('radni sati') ||
+      desc.includes('vrijeme servisa') ||
+      unit.includes('15 min')
+    );
   };
 
   const total = useMemo(
@@ -519,13 +582,19 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                     {invoiceRows.map((row, index) => (
                       <tr
                         key={index}
-                        className={`border-t border-gray-100 ${!row.isFromPriceList ? 'bg-red-50' : ''}`}
+                        className={`border-t border-gray-100 ${
+                          !row.isFromPriceList
+                            ? 'bg-red-50'
+                            : isAutoGeneratedRow(index)
+                              ? 'bg-yellow-50'
+                              : 'bg-green-50'
+                        }`}
                       >
                         <td className="p-2">{index + 1}</td>
                         <td className="p-2">
                           {proposalCompleted ? (
                             row.description
-                          ) : index >= numAutoRows ? (
+                          ) : !isAutoGeneratedRow(index) ? (
                             <div className="flex items-center gap-2 flex-1 min-w-0">
                               <select
                                 value={row.isNotInPricelist ? NOT_IN_PRICELIST_VALUE : (row.priceListItemId != null ? String(row.priceListItemId) : '')}
@@ -590,7 +659,10 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                           )}
                         </td>
                         <td className="p-2">
-                          {proposalCompleted || isArrivalRow(index) || isServiceTimeRow(index) ? (
+                          {proposalCompleted ||
+                          isArrivalRow(index) ||
+                          isServiceTimeRow(index) ||
+                          row.isFromPriceList ? (
                             row.unit
                           ) : (
                             <input
@@ -616,7 +688,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                             <input
                               type="number"
                               min={0}
-                              step={0.25}
+                              step={1}
                               value={row.quantity}
                               onChange={(e) => updateRow(index, 'quantity', parseFloat(e.target.value) || 0)}
                               className="p-2 border border-gray-300 rounded w-20 text-right"
@@ -624,7 +696,10 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                           )}
                         </td>
                         <td className="p-2 text-right">
-                          {proposalCompleted || isArrivalRow(index) || isServiceTimeRow(index) ? (
+                          {proposalCompleted ||
+                          isArrivalRow(index) ||
+                          isServiceTimeRow(index) ||
+                          row.isFromPriceList ? (
                             `€${Number(row.pricePerUnit).toFixed(2)}`
                           ) : (
                             <input
@@ -642,7 +717,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                         </td>
                         {!proposalCompleted && (
                           <td className="p-2">
-                            {index >= numAutoRows ? (
+                            {!isAutoGeneratedRow(index) ? (
                               <button
                                 type="button"
                                 onClick={() => removeRow(index)}
@@ -715,7 +790,16 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                     </thead>
                     <tbody>
                       {wo.invoiceRows.map((r) => (
-                        <tr key={r.id} className={`border-t border-gray-100 ${r.warningFlag ? 'bg-red-50' : ''}`}>
+                        <tr
+                          key={r.id}
+                          className={`border-t border-gray-100 ${
+                            r.priceListItemId == null
+                              ? 'bg-red-50'
+                              : isAutoGeneratedInvoiceRowReadonly(r)
+                                ? 'bg-yellow-50'
+                                : 'bg-green-50'
+                          }`}
+                        >
                           <td className="p-2">{r.rowNumber}</td>
                           <td className="p-2">{r.description}</td>
                           <td className="p-2">{r.unit}</td>
@@ -727,6 +811,9 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }: S3WorkOrderDeta
                     </tbody>
                   </table>
                 </div>
+                <p className="text-xs text-gray-600 mt-2">
+                  Colors: light yellow = auto-generated (arrival/service time), light green = item from price list, light red = item not in price list.
+                </p>
                 {wo.totalCost != null && (
                   <p className="mt-2 font-semibold">Total: €{Number(wo.totalCost).toFixed(2)}</p>
                 )}

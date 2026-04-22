@@ -12,7 +12,7 @@ export interface BatchLineItem {
   storeName: string;
   completionDate: string; // formatted
   approvedAmount: number;
-  description: string; // short, e.g. first invoice row or WO summary
+  interventionType: string;
 }
 
 export interface BatchPdfData {
@@ -61,25 +61,24 @@ export function generateBatchRecapPdf(data: BatchPdfData, filePath: string): Pro
     const col2 = 110; // Store
     const col3 = 220; // Completion date
     const col4 = 310; // Amount
-    const col5 = 380; // Description
+    const col5 = 380; // Intervention type
     doc.font('Helvetica-Bold').fontSize(9);
     doc.text('WO #', col1, doc.y);
     doc.text('Store / Site', col2, doc.y);
     doc.text('Completion', col3, doc.y);
     doc.text('Amount', col4, doc.y);
-    doc.text('Description', col5, doc.y);
+    doc.text('Intervention Type', col5, doc.y);
     doc.y += rowHeight;
     doc.moveTo(50, doc.y).lineTo(pageWidth + 50, doc.y).stroke();
     doc.moveDown(0.3);
     doc.font('Helvetica').fontSize(9);
 
     for (const row of data.items) {
-      const desc = (row.description || '').slice(0, 35);
       doc.text(String(row.workOrderId), col1, doc.y);
       doc.text((row.storeName || '').slice(0, 18), col2, doc.y);
       doc.text(row.completionDate, col3, doc.y);
       doc.text(formatCurrency(row.approvedAmount, data.currency), col4, doc.y);
-      doc.text(desc, col5, doc.y);
+      doc.text(row.interventionType, col5, doc.y);
       doc.y += rowHeight;
     }
 

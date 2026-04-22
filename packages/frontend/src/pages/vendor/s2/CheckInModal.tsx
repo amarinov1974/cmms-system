@@ -27,7 +27,6 @@ export function CheckInModal({
 }: CheckInModalProps) {
   const queryClient = useQueryClient();
   const [qrToken, setQrToken] = useState('');
-  const [checkInSuccess, setCheckInSuccess] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
 
   const checkInMutation = useMutation({
@@ -35,7 +34,8 @@ export function CheckInModal({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-orders'] });
       queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
-      setCheckInSuccess(true);
+      onSuccess?.();
+      onClose();
     },
   });
 
@@ -64,36 +64,6 @@ export function CheckInModal({
   const handleReturnToStore = () => {
     returnMutation.mutate();
   };
-
-  const handleCloseAfterSuccess = () => {
-    onSuccess?.();
-    onClose();
-  };
-
-  if (checkInSuccess) {
-    return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg max-w-md w-full">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900">Check In</h2>
-            <p className="text-sm text-gray-600">WO #{workOrderId}</p>
-          </div>
-          <div className="p-6 space-y-4">
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-sm text-green-800">
-                You are checked in now! When done with work, open the work order to fill out work specification and check out.
-              </p>
-            </div>
-          </div>
-          <div className="p-6 border-t border-gray-200">
-            <Button type="button" onClick={handleCloseAfterSuccess} className="w-full">
-              Close
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">

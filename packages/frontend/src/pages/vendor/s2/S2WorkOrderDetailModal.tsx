@@ -31,6 +31,7 @@ export function S2WorkOrderDetailModal({
   const [showCheckOut, setShowCheckOut] = useState(false);
   const [workReport, setWorkReport] = useState<WorkReportRow[]>([]);
   const [reportCompleted, setReportCompleted] = useState(false);
+  const [checkInNotice, setCheckInNotice] = useState<string | null>(null);
 
   const { data: wo, isLoading } = useQuery({
     queryKey: ['work-order', workOrderId],
@@ -114,7 +115,14 @@ export function S2WorkOrderDetailModal({
     queryClient.invalidateQueries({ queryKey: ['work-orders'] });
     queryClient.invalidateQueries({ queryKey: ['work-order', workOrderId] });
     setShowCheckIn(false);
+    setCheckInNotice('Your arrival on site has been registered. You can now start work.');
   };
+
+  useEffect(() => {
+    if (checkInNotice == null) return;
+    const timer = window.setTimeout(() => setCheckInNotice(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [checkInNotice]);
 
   const onCheckOutSuccess = () => {
     clearS2WODraft(workOrderId);
@@ -158,6 +166,11 @@ export function S2WorkOrderDetailModal({
           </div>
 
           <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+            {checkInNotice != null && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-sm text-green-800">{checkInNotice}</p>
+              </div>
+            )}
             <section>
               <h2 className="font-semibold text-gray-900 mb-2">Details</h2>
               <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">

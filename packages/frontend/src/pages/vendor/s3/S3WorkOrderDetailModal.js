@@ -73,6 +73,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
     const isEditable = wo?.currentStatus === 'Service Completed' || wo?.currentStatus === 'Cost Revision Requested';
     const isOwner = session?.userId != null && wo?.currentOwnerId === session.userId;
     const canEditAndSubmit = isEditable && isOwner;
+    const techCount = Math.max(1, wo?.declaredTechCount ?? 1);
     const categories = useMemo(() => {
         const set = new Set(selectablePriceList.map((p) => p.category));
         return Array.from(set).sort();
@@ -86,21 +87,72 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
         }
         return map;
     }, [selectablePriceList]);
-    const arrivalItem = useMemo(() => selectablePriceList.find((p) => p.description.toLowerCase().includes('arrival') ||
-        (p.category === 'Fixed Fees' && p.unit.toLowerCase().includes('visit'))) ?? selectablePriceList.find((p) => p.category === 'Fixed Fees'), [selectablePriceList]);
-    const laborItem = useMemo(() => selectablePriceList.find((p) => p.category === 'Labor' &&
-        (p.description.toLowerCase().includes('service hours') || p.description.toLowerCase().includes('hour'))) ?? selectablePriceList.find((p) => p.category === 'Labor'), [selectablePriceList]);
+    const arrivalItem = useMemo(() => priceList.find((p) => {
+        const desc = p.description.toLowerCase();
+        const category = p.category.toLowerCase();
+        const unit = p.unit.toLowerCase();
+        return (desc.includes('arrival') ||
+            desc.includes('dolazak') ||
+            (category === 'fixed fees' && (unit.includes('visit') || unit.includes('arrival'))));
+    }) ??
+        priceList.find((p) => p.category.toLowerCase() === 'fixed fees'), [priceList]);
+    const laborItem = useMemo(() => priceList.find((p) => {
+        const desc = p.description.toLowerCase();
+        const category = p.category.toLowerCase();
+        return (category === 'labor' &&
+            (p.unitMinutes != null ||
+                desc.includes('service time') ||
+                desc.includes('service hours') ||
+                desc.includes('hour') ||
+                desc.includes('radni sati') ||
+                desc.includes('vrijeme servisa')));
+    }) ?? priceList.find((p) => p.category.toLowerCase() === 'labor'), [priceList]);
+    const isServiceTimeInvoiceRow = (row) => {
+        const desc = row.description.toLowerCase();
+        if (desc.includes('service time') ||
+            desc.includes('service hours') ||
+            desc.includes('radni sati') ||
+            desc.includes('vrijeme servisa')) {
+            return true;
+        }
+        if (row.priceListItemId == null)
+            return false;
+        const item = priceList.find((p) => p.id === row.priceListItemId);
+        return (item?.unitMinutes ?? 0) > 0;
+    };
+    const normalizeServiceTimeRowsPerTechnician = (rows) => {
+        if (techCount <= 1)
+            return rows;
+        const serviceRows = rows.filter((row) => isServiceTimeInvoiceRow(row));
+        if (serviceRows.length === 0 || serviceRows.length >= techCount)
+            return rows;
+        const firstServiceIndex = rows.findIndex((row) => isServiceTimeInvoiceRow(row));
+        if (firstServiceIndex < 0)
+            return rows;
+        const additionalRows = Array.from({ length: techCount - serviceRows.length }, () => ({
+            ...serviceRows[0],
+        }));
+        const nonServiceRowsAfterFirst = rows
+            .slice(firstServiceIndex)
+            .filter((row) => !isServiceTimeInvoiceRow(row));
+        return [
+            ...rows.slice(0, firstServiceIndex),
+            ...serviceRows,
+            ...additionalRows,
+            ...nonServiceRowsAfterFirst,
+        ];
+    };
     useEffect(() => {
         if (wo == null || priceList.length === 0 || initialized)
             return;
         const draft = getS3WODraft(workOrderId);
         if (draft?.invoiceRows != null && draft.invoiceRows.length > 0) {
-            setInvoiceRows(draft.invoiceRows);
+            setInvoiceRows(normalizeServiceTimeRowsPerTechnician(draft.invoiceRows));
             setInitialized(true);
             return;
         }
         if (wo.invoiceRows != null && wo.invoiceRows.length > 0) {
-            setInvoiceRows(wo.invoiceRows.map((r) => {
+            const mappedRows = wo.invoiceRows.map((r) => {
                 const fromList = r.priceListItemId != null;
                 return {
                     description: r.description,
@@ -111,7 +163,8 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
                     isFromPriceList: fromList,
                     isNotInPricelist: !fromList && r.description.trim() !== '',
                 };
-            }));
+            });
+            setInvoiceRows(normalizeServiceTimeRowsPerTechnician(mappedRows));
         }
         else {
             const visitPairs = wo.visitPairs;
@@ -135,14 +188,16 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
                     }
                     else {
                         const units = totalServiceTimeUnitsFromVisitPairs(visitPairs, item.unitMinutes, wo.checkinTs ?? null, wo.checkoutTs ?? null);
-                        rows.push({
-                            description: item.description,
-                            unit: item.unit,
-                            quantity: units,
-                            pricePerUnit: item.pricePerUnit,
-                            priceListItemId: item.id,
-                            isFromPriceList: true,
-                        });
+                        for (let i = 0; i < techCount; i++) {
+                            rows.push({
+                                description: item.description,
+                                unit: item.unit,
+                                quantity: units,
+                                pricePerUnit: item.pricePerUnit,
+                                priceListItemId: item.id,
+                                isFromPriceList: true,
+                            });
+                        }
                     }
                 }
             }
@@ -157,7 +212,6 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
                         isFromPriceList: true,
                     });
                 }
-                const techCount = wo.declaredTechCount ?? 1;
                 if (laborItem && (totalLaborH > 0 || techCount > 0)) {
                     for (let i = 0; i < techCount; i++) {
                         rows.push({
@@ -184,7 +238,7 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
             setInvoiceRows(rows);
         }
         setInitialized(true);
-    }, [wo, priceList, autoApplyItems, arrivalItem, laborItem, initialized]);
+    }, [wo, priceList, autoApplyItems, arrivalItem, laborItem, initialized, techCount]);
     const submitMutation = useMutation({
         mutationFn: workOrdersAPI.submitCostProposal,
         onSuccess: () => {
@@ -247,13 +301,18 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
             !Number.isNaN(r.quantity) &&
             r.pricePerUnit >= 0 &&
             !Number.isNaN(r.pricePerUnit));
-    const numAutoRows = autoApplyItems.length > 0
-        ? autoApplyItems.length
-        : (arrivalItem ? 1 : 0) +
-            (laborItem && (wo?.declaredTechCount ?? 1) > 0 ? (wo?.declaredTechCount ?? 1) : 0);
     const isServiceTimeRow = (index) => {
         const row = invoiceRows[index];
-        if (row?.priceListItemId == null)
+        if (!row)
+            return false;
+        const desc = row.description.toLowerCase();
+        if (desc.includes('service time') ||
+            desc.includes('service hours') ||
+            desc.includes('radni sati') ||
+            desc.includes('vrijeme servisa')) {
+            return true;
+        }
+        if (row.priceListItemId == null)
             return false;
         const item = priceList.find((p) => p.id === row.priceListItemId);
         return (item?.unitMinutes ?? 0) > 0;
@@ -261,10 +320,27 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
     /** Arrival-to-location row: auto-applied, quantity always 1 (not editable in Service Completed) */
     const isArrivalRow = (index) => {
         const row = invoiceRows[index];
-        if (row?.priceListItemId == null)
+        if (!row)
+            return false;
+        const desc = row.description.toLowerCase();
+        if (desc.includes('arrival') || desc.includes('dolazak'))
+            return true;
+        if (row.priceListItemId == null)
             return false;
         const item = priceList.find((p) => p.id === row.priceListItemId);
         return item?.selectableInUI === false && (item?.unitMinutes ?? 0) === 0;
+    };
+    const isAutoGeneratedRow = (index) => isArrivalRow(index) || isServiceTimeRow(index);
+    const isAutoGeneratedInvoiceRowReadonly = (row) => {
+        const desc = row.description.toLowerCase();
+        const unit = row.unit.toLowerCase();
+        return (desc.includes('arrival') ||
+            desc.includes('dolazak') ||
+            desc.includes('service time') ||
+            desc.includes('service hours') ||
+            desc.includes('radni sati') ||
+            desc.includes('vrijeme servisa') ||
+            unit.includes('15 min'));
     };
     const total = useMemo(() => invoiceRows.reduce((sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.pricePerUnit) || 0), 0), [invoiceRows]);
     const handleSend = () => {
@@ -290,7 +366,11 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
     if (submitSuccess) {
         return (_jsx("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50", children: _jsxs("div", { className: "bg-white rounded-lg max-w-md w-full p-6", children: [_jsx("div", { className: "bg-green-50 border border-green-200 rounded-lg p-4 mb-4", children: _jsx("p", { className: "text-sm text-green-800", children: "Cost proposal sent to AMM." }) }), _jsx(Button, { type: "button", onClick: onClose, className: "w-full", children: "Back to dashboard" })] }) }));
     }
-    return (_jsx("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto", children: _jsxs("div", { className: "bg-white rounded-lg max-w-4xl w-full my-8", children: [_jsx("div", { className: "p-6 border-b border-gray-200", children: _jsxs("div", { className: "flex justify-between items-start", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-xl font-bold text-gray-900", children: "Work Order Detail" }), _jsxs("p", { className: "text-sm text-gray-600 mt-1", children: ["WO #", wo.id, " \u2022 Ticket #", wo.ticketId] }), _jsx(Badge, { variant: wo.urgent ? 'danger' : 'secondary', className: "mt-2", children: wo.urgent ? 'Urgent' : 'Non-Urgent' })] }), _jsx(Button, { type: "button", variant: "secondary", onClick: saveDraftAndClose, children: "Back" })] }) }), _jsxs("div", { className: "p-6 space-y-6 max-h-[75vh] overflow-y-auto", children: [_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Details (read-only)" }), _jsxs("div", { className: "bg-gray-50 rounded-lg p-4 space-y-2 text-sm", children: [_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Store:" }), " ", wo.storeName ?? '—'] }), wo.storeAddress != null && wo.storeAddress !== '' && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Address:" }), " ", wo.storeAddress] })), _jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Category:" }), " ", wo.category ?? '—'] }), _jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "AMM comment:" }), " ", wo.commentToVendor ?? '—'] }), wo.assetDescription != null && wo.assetDescription !== '' && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Asset:" }), " ", wo.assetDescription] })), wo.attachments != null && wo.attachments.length > 0 && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Attachments:" }), _jsx("ul", { className: "list-disc list-inside mt-1", children: wo.attachments.map((a) => (_jsx("li", { children: a.fileName }, a.id))) })] }))] })] }), wo.workReport != null && wo.workReport.length > 0 && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Technician work report (read-only)" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-left p-2", children: "Quantity" })] }) }), _jsx("tbody", { children: wo.workReport.map((row, idx) => (_jsxs("tr", { className: "border-t border-gray-100", children: [_jsx("td", { className: "p-2", children: idx + 1 }), _jsx("td", { className: "p-2", children: row.description }), _jsx("td", { className: "p-2", children: row.unit }), _jsx("td", { className: "p-2", children: row.quantity })] }, idx))) })] }) })] })), canEditAndSubmit && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Invoice proposal" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2 w-10", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-right p-2", children: "Qty" }), _jsx("th", { className: "text-right p-2", children: "Price/Unit" }), _jsx("th", { className: "text-right p-2", children: "Line Total" }), !proposalCompleted && _jsx("th", { className: "w-20" })] }) }), _jsx("tbody", { children: invoiceRows.map((row, index) => (_jsxs("tr", { className: `border-t border-gray-100 ${!row.isFromPriceList ? 'bg-red-50' : ''}`, children: [_jsx("td", { className: "p-2", children: index + 1 }), _jsx("td", { className: "p-2", children: proposalCompleted ? (row.description) : index >= numAutoRows ? (_jsxs("div", { className: "flex items-center gap-2 flex-1 min-w-0", children: [_jsxs("select", { value: row.isNotInPricelist ? NOT_IN_PRICELIST_VALUE : (row.priceListItemId != null ? String(row.priceListItemId) : ''), onChange: (e) => {
+    return (_jsx("div", { className: "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto", children: _jsxs("div", { className: "bg-white rounded-lg max-w-4xl w-full my-8", children: [_jsx("div", { className: "p-6 border-b border-gray-200", children: _jsxs("div", { className: "flex justify-between items-start", children: [_jsxs("div", { children: [_jsx("h1", { className: "text-xl font-bold text-gray-900", children: "Work Order Detail" }), _jsxs("p", { className: "text-sm text-gray-600 mt-1", children: ["WO #", wo.id, " \u2022 Ticket #", wo.ticketId] }), _jsx(Badge, { variant: wo.urgent ? 'danger' : 'secondary', className: "mt-2", children: wo.urgent ? 'Urgent' : 'Non-Urgent' })] }), _jsx(Button, { type: "button", variant: "secondary", onClick: saveDraftAndClose, children: "Back" })] }) }), _jsxs("div", { className: "p-6 space-y-6 max-h-[75vh] overflow-y-auto", children: [_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Details (read-only)" }), _jsxs("div", { className: "bg-gray-50 rounded-lg p-4 space-y-2 text-sm", children: [_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Store:" }), " ", wo.storeName ?? '—'] }), wo.storeAddress != null && wo.storeAddress !== '' && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Address:" }), " ", wo.storeAddress] })), _jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Category:" }), " ", wo.category ?? '—'] }), _jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "AMM comment:" }), " ", wo.commentToVendor ?? '—'] }), wo.assetDescription != null && wo.assetDescription !== '' && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Asset:" }), " ", wo.assetDescription] })), wo.attachments != null && wo.attachments.length > 0 && (_jsxs("div", { children: [_jsx("span", { className: "text-gray-600", children: "Attachments:" }), _jsx("ul", { className: "list-disc list-inside mt-1", children: wo.attachments.map((a) => (_jsx("li", { children: a.fileName }, a.id))) })] }))] })] }), wo.workReport != null && wo.workReport.length > 0 && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Technician work report (read-only)" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-left p-2", children: "Quantity" })] }) }), _jsx("tbody", { children: wo.workReport.map((row, idx) => (_jsxs("tr", { className: "border-t border-gray-100", children: [_jsx("td", { className: "p-2", children: idx + 1 }), _jsx("td", { className: "p-2", children: row.description }), _jsx("td", { className: "p-2", children: row.unit }), _jsx("td", { className: "p-2", children: row.quantity })] }, idx))) })] }) })] })), canEditAndSubmit && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Invoice proposal" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2 w-10", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-right p-2", children: "Qty" }), _jsx("th", { className: "text-right p-2", children: "Price/Unit" }), _jsx("th", { className: "text-right p-2", children: "Line Total" }), !proposalCompleted && _jsx("th", { className: "w-20" })] }) }), _jsx("tbody", { children: invoiceRows.map((row, index) => (_jsxs("tr", { className: `border-t border-gray-100 ${!row.isFromPriceList
+                                                        ? 'bg-red-50'
+                                                        : isAutoGeneratedRow(index)
+                                                            ? 'bg-yellow-50'
+                                                            : 'bg-green-50'}`, children: [_jsx("td", { className: "p-2", children: index + 1 }), _jsx("td", { className: "p-2", children: proposalCompleted ? (row.description) : !isAutoGeneratedRow(index) ? (_jsxs("div", { className: "flex items-center gap-2 flex-1 min-w-0", children: [_jsxs("select", { value: row.isNotInPricelist ? NOT_IN_PRICELIST_VALUE : (row.priceListItemId != null ? String(row.priceListItemId) : ''), onChange: (e) => {
                                                                             const val = e.target.value;
                                                                             if (val === '') {
                                                                                 const next = [...invoiceRows];
@@ -324,7 +404,17 @@ export function S3WorkOrderDetailModal({ workOrderId, onClose }) {
                                                                                 if (item)
                                                                                     selectPriceItem(index, item);
                                                                             }
-                                                                        }, className: "p-2 border border-gray-300 rounded flex-shrink-0 w-48", children: [_jsx("option", { value: "", children: "Select item from pricelist" }), categories.map((cat) => (_jsx("optgroup", { label: cat, children: (byCategory.get(cat) ?? []).map((p) => (_jsxs("option", { value: p.id, children: [p.description, " \u2014 \u20AC", p.pricePerUnit] }, p.id))) }, cat))), _jsx("option", { value: NOT_IN_PRICELIST_VALUE, children: "Item not in pricelist" })] }), row.isNotInPricelist && (_jsx("input", { type: "text", value: row.description, onChange: (e) => updateRow(index, 'description', e.target.value), placeholder: "Enter item name", className: "p-2 border border-gray-300 rounded flex-1 min-w-0" }))] })) : (row.description) }), _jsx("td", { className: "p-2", children: proposalCompleted || isArrivalRow(index) || isServiceTimeRow(index) ? (row.unit) : (_jsx("input", { type: "text", value: row.unit, onChange: (e) => updateRow(index, 'unit', e.target.value), className: "p-2 border border-gray-300 rounded w-24" })) }), _jsx("td", { className: "p-2 text-right", children: proposalCompleted ? (row.quantity) : isServiceTimeRow(index) ? (_jsx("span", { title: "Calculated from check-in/check-out (round up to 15 min units)", children: row.quantity })) : isArrivalRow(index) ? (_jsx("span", { title: "Arrival to location is always 1 per intervention", children: "1" })) : (_jsx("input", { type: "number", min: 0, step: 0.25, value: row.quantity, onChange: (e) => updateRow(index, 'quantity', parseFloat(e.target.value) || 0), className: "p-2 border border-gray-300 rounded w-20 text-right" })) }), _jsx("td", { className: "p-2 text-right", children: proposalCompleted || isArrivalRow(index) || isServiceTimeRow(index) ? (`€${Number(row.pricePerUnit).toFixed(2)}`) : (_jsx("input", { type: "number", min: 0, step: 0.01, value: row.pricePerUnit, onChange: (e) => updateRow(index, 'pricePerUnit', parseFloat(e.target.value) || 0), className: "p-2 border border-gray-300 rounded w-24 text-right" })) }), _jsxs("td", { className: "p-2 text-right font-medium", children: ["\u20AC", ((row.quantity || 0) * (row.pricePerUnit || 0)).toFixed(2)] }), !proposalCompleted && (_jsx("td", { className: "p-2", children: index >= numAutoRows ? (_jsx("button", { type: "button", onClick: () => removeRow(index), className: "text-red-600 hover:text-red-800", "aria-label": "Remove row", children: "\u2715" })) : null }))] }, index))) })] }) }), !proposalCompleted && (_jsx(Button, { type: "button", size: "sm", variant: "secondary", onClick: addRow, className: "mt-2", children: "+ Add Row" })), _jsx("div", { className: "mt-3 flex flex-wrap gap-2 items-center", children: proposalCompleted ? (_jsx(Button, { type: "button", variant: "secondary", size: "sm", onClick: () => setProposalCompleted(false), children: "Edit Proposal" })) : (_jsx(Button, { type: "button", size: "sm", onClick: () => setProposalCompleted(true), disabled: !canComplete, children: "Complete Proposal" })) }), _jsxs("div", { className: "mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center", children: [_jsx("span", { className: "font-semibold text-gray-900", children: "Total:" }), _jsxs("span", { className: "text-2xl font-bold text-blue-900", children: ["\u20AC", total.toFixed(2)] })] }), _jsx("div", { className: "mt-4", children: _jsx(Button, { type: "button", onClick: handleSend, disabled: !proposalCompleted || !canComplete || submitMutation.isPending, children: submitMutation.isPending ? 'Sending...' : 'Send Cost Proposal' }) })] })), !canEditAndSubmit && (wo.invoiceRows != null &&
-                            wo.invoiceRows.length > 0 && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Invoice (read-only)" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-right p-2", children: "Qty" }), _jsx("th", { className: "text-right p-2", children: "Price/Unit" }), _jsx("th", { className: "text-right p-2", children: "Total" })] }) }), _jsx("tbody", { children: wo.invoiceRows.map((r) => (_jsxs("tr", { className: `border-t border-gray-100 ${r.warningFlag ? 'bg-red-50' : ''}`, children: [_jsx("td", { className: "p-2", children: r.rowNumber }), _jsx("td", { className: "p-2", children: r.description }), _jsx("td", { className: "p-2", children: r.unit }), _jsx("td", { className: "p-2 text-right", children: r.quantity }), _jsxs("td", { className: "p-2 text-right", children: ["\u20AC", Number(r.pricePerUnit).toFixed(2)] }), _jsxs("td", { className: "p-2 text-right", children: ["\u20AC", Number(r.lineTotal).toFixed(2)] })] }, r.id))) })] }) }), wo.totalCost != null && (_jsxs("p", { className: "mt-2 font-semibold", children: ["Total: \u20AC", Number(wo.totalCost).toFixed(2)] }))] }))), wo.auditLog != null && wo.auditLog.length > 0 && (_jsxs("section", { children: [_jsx("h3", { className: "font-semibold text-gray-900 mb-2", children: "History" }), _jsx("div", { className: "space-y-2", children: wo.auditLog.map((entry) => (_jsxs("div", { className: "text-sm bg-gray-50 rounded-lg p-3", children: [_jsx("span", { className: "text-gray-600", children: new Date(entry.createdAt).toLocaleString() }), ' — ', _jsx("span", { className: "font-medium", children: entry.actionType }), entry.prevStatus != null && (_jsxs("span", { className: "text-gray-600", children: [" (", entry.prevStatus, " \u2192 ", entry.newStatus, ")"] })), _jsxs("p", { className: "mt-1 text-gray-600", children: ["Performed by ", entry.actorName, entry.actorRole != null ? ` (${entry.actorRole})` : ''] }), entry.comment != null && _jsxs("p", { className: "text-gray-600 mt-1", children: ["\"", entry.comment, "\""] })] }, entry.id))) })] })), submitMutation.isError && (_jsx("div", { className: "bg-red-50 border border-red-200 rounded-lg p-4", children: _jsx("p", { className: "text-sm text-red-700", children: submitMutation.error?.response?.data?.error ??
+                                                                        }, className: "p-2 border border-gray-300 rounded flex-shrink-0 w-48", children: [_jsx("option", { value: "", children: "Select item from pricelist" }), categories.map((cat) => (_jsx("optgroup", { label: cat, children: (byCategory.get(cat) ?? []).map((p) => (_jsxs("option", { value: p.id, children: [p.description, " \u2014 \u20AC", p.pricePerUnit] }, p.id))) }, cat))), _jsx("option", { value: NOT_IN_PRICELIST_VALUE, children: "Item not in pricelist" })] }), row.isNotInPricelist && (_jsx("input", { type: "text", value: row.description, onChange: (e) => updateRow(index, 'description', e.target.value), placeholder: "Enter item name", className: "p-2 border border-gray-300 rounded flex-1 min-w-0" }))] })) : (row.description) }), _jsx("td", { className: "p-2", children: proposalCompleted ||
+                                                                isArrivalRow(index) ||
+                                                                isServiceTimeRow(index) ||
+                                                                row.isFromPriceList ? (row.unit) : (_jsx("input", { type: "text", value: row.unit, onChange: (e) => updateRow(index, 'unit', e.target.value), className: "p-2 border border-gray-300 rounded w-24" })) }), _jsx("td", { className: "p-2 text-right", children: proposalCompleted ? (row.quantity) : isServiceTimeRow(index) ? (_jsx("span", { title: "Calculated from check-in/check-out (round up to 15 min units)", children: row.quantity })) : isArrivalRow(index) ? (_jsx("span", { title: "Arrival to location is always 1 per intervention", children: "1" })) : (_jsx("input", { type: "number", min: 0, step: 1, value: row.quantity, onChange: (e) => updateRow(index, 'quantity', parseFloat(e.target.value) || 0), className: "p-2 border border-gray-300 rounded w-20 text-right" })) }), _jsx("td", { className: "p-2 text-right", children: proposalCompleted ||
+                                                                isArrivalRow(index) ||
+                                                                isServiceTimeRow(index) ||
+                                                                row.isFromPriceList ? (`€${Number(row.pricePerUnit).toFixed(2)}`) : (_jsx("input", { type: "number", min: 0, step: 0.01, value: row.pricePerUnit, onChange: (e) => updateRow(index, 'pricePerUnit', parseFloat(e.target.value) || 0), className: "p-2 border border-gray-300 rounded w-24 text-right" })) }), _jsxs("td", { className: "p-2 text-right font-medium", children: ["\u20AC", ((row.quantity || 0) * (row.pricePerUnit || 0)).toFixed(2)] }), !proposalCompleted && (_jsx("td", { className: "p-2", children: !isAutoGeneratedRow(index) ? (_jsx("button", { type: "button", onClick: () => removeRow(index), className: "text-red-600 hover:text-red-800", "aria-label": "Remove row", children: "\u2715" })) : null }))] }, index))) })] }) }), !proposalCompleted && (_jsx(Button, { type: "button", size: "sm", variant: "secondary", onClick: addRow, className: "mt-2", children: "+ Add Row" })), _jsx("div", { className: "mt-3 flex flex-wrap gap-2 items-center", children: proposalCompleted ? (_jsx(Button, { type: "button", variant: "secondary", size: "sm", onClick: () => setProposalCompleted(false), children: "Edit Proposal" })) : (_jsx(Button, { type: "button", size: "sm", onClick: () => setProposalCompleted(true), disabled: !canComplete, children: "Complete Proposal" })) }), _jsxs("div", { className: "mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center", children: [_jsx("span", { className: "font-semibold text-gray-900", children: "Total:" }), _jsxs("span", { className: "text-2xl font-bold text-blue-900", children: ["\u20AC", total.toFixed(2)] })] }), _jsx("div", { className: "mt-4", children: _jsx(Button, { type: "button", onClick: handleSend, disabled: !proposalCompleted || !canComplete || submitMutation.isPending, children: submitMutation.isPending ? 'Sending...' : 'Send Cost Proposal' }) })] })), !canEditAndSubmit && (wo.invoiceRows != null &&
+                            wo.invoiceRows.length > 0 && (_jsxs("section", { children: [_jsx("h2", { className: "font-semibold text-gray-900 mb-2", children: "Invoice (read-only)" }), _jsx("div", { className: "overflow-x-auto border border-gray-200 rounded-lg", children: _jsxs("table", { className: "w-full text-sm", children: [_jsx("thead", { children: _jsxs("tr", { className: "bg-gray-100", children: [_jsx("th", { className: "text-left p-2", children: "#" }), _jsx("th", { className: "text-left p-2", children: "Description" }), _jsx("th", { className: "text-left p-2", children: "Unit" }), _jsx("th", { className: "text-right p-2", children: "Qty" }), _jsx("th", { className: "text-right p-2", children: "Price/Unit" }), _jsx("th", { className: "text-right p-2", children: "Total" })] }) }), _jsx("tbody", { children: wo.invoiceRows.map((r) => (_jsxs("tr", { className: `border-t border-gray-100 ${r.priceListItemId == null
+                                                        ? 'bg-red-50'
+                                                        : isAutoGeneratedInvoiceRowReadonly(r)
+                                                            ? 'bg-yellow-50'
+                                                            : 'bg-green-50'}`, children: [_jsx("td", { className: "p-2", children: r.rowNumber }), _jsx("td", { className: "p-2", children: r.description }), _jsx("td", { className: "p-2", children: r.unit }), _jsx("td", { className: "p-2 text-right", children: r.quantity }), _jsxs("td", { className: "p-2 text-right", children: ["\u20AC", Number(r.pricePerUnit).toFixed(2)] }), _jsxs("td", { className: "p-2 text-right", children: ["\u20AC", Number(r.lineTotal).toFixed(2)] })] }, r.id))) })] }) }), _jsx("p", { className: "text-xs text-gray-600 mt-2", children: "Colors: light yellow = auto-generated (arrival/service time), light green = item from price list, light red = item not in price list." }), wo.totalCost != null && (_jsxs("p", { className: "mt-2 font-semibold", children: ["Total: \u20AC", Number(wo.totalCost).toFixed(2)] }))] }))), wo.auditLog != null && wo.auditLog.length > 0 && (_jsxs("section", { children: [_jsx("h3", { className: "font-semibold text-gray-900 mb-2", children: "History" }), _jsx("div", { className: "space-y-2", children: wo.auditLog.map((entry) => (_jsxs("div", { className: "text-sm bg-gray-50 rounded-lg p-3", children: [_jsx("span", { className: "text-gray-600", children: new Date(entry.createdAt).toLocaleString() }), ' — ', _jsx("span", { className: "font-medium", children: entry.actionType }), entry.prevStatus != null && (_jsxs("span", { className: "text-gray-600", children: [" (", entry.prevStatus, " \u2192 ", entry.newStatus, ")"] })), _jsxs("p", { className: "mt-1 text-gray-600", children: ["Performed by ", entry.actorName, entry.actorRole != null ? ` (${entry.actorRole})` : ''] }), entry.comment != null && _jsxs("p", { className: "text-gray-600 mt-1", children: ["\"", entry.comment, "\""] })] }, entry.id))) })] })), submitMutation.isError && (_jsx("div", { className: "bg-red-50 border border-red-200 rounded-lg p-4", children: _jsx("p", { className: "text-sm text-red-700", children: submitMutation.error?.response?.data?.error ??
                                     'Failed to submit' }) }))] })] }) }));
 }
