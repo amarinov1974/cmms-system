@@ -54,6 +54,7 @@ router.get('/:id/pdf', async (req, res) => {
       return;
     }
     res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="invoice-batch-${id}.pdf"`);
     res.sendFile(absolutePath);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to get PDF';

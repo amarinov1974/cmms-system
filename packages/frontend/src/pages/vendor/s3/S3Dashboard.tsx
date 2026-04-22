@@ -163,7 +163,10 @@ export function S3Dashboard() {
                       await queryClient.invalidateQueries({
                         queryKey: ['work-orders', 's3', session?.companyId],
                       });
-                      window.open(res.batch.pdfUrl, '_blank', 'noopener');
+                      const pdfBlob = await invoiceBatchesAPI.getPdfBlob(res.batch.id);
+                      const pdfObjectUrl = URL.createObjectURL(pdfBlob);
+                      window.open(pdfObjectUrl, '_blank', 'noopener');
+                      window.setTimeout(() => URL.revokeObjectURL(pdfObjectUrl), 60_000);
                     } catch (e: unknown) {
                       const err = e as { response?: { data?: { error?: string }; status?: number } };
                       const msg =

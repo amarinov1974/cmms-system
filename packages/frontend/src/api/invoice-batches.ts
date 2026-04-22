@@ -32,4 +32,11 @@ export const invoiceBatchesAPI = {
     const base = apiClient.defaults.baseURL ?? '';
     return `${base}/invoice-batches/${batchId}/pdf`;
   },
+
+  async getPdfBlob(batchId: number): Promise<Blob> {
+    const { data } = await apiClient.get(`/invoice-batches/${batchId}/pdf`, {
+      responseType: 'blob',
+    });
+    return data;
+  },
 };
