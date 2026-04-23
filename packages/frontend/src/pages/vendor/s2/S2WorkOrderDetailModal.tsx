@@ -37,6 +37,8 @@ export function S2WorkOrderDetailModal({
     queryKey: ['work-order', workOrderId],
     queryFn: () => workOrdersAPI.getById(workOrderId),
     enabled: workOrderId > 0,
+    // Keep WO details fresh while check-in modal is open (SM may generate QR in parallel).
+    refetchInterval: showCheckIn ? 3000 : false,
   });
 
   const isAssigned = wo?.currentStatus === WorkOrderStatus.ACCEPTED_TECHNICIAN_ASSIGNED;

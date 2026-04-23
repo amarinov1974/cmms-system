@@ -50,15 +50,19 @@ export function CheckInModal({
   });
 
   const techCountValid = declaredTechCount != null && declaredTechCount >= 1;
-  const canConfirm = techCountValid && qrToken.trim() !== '';
+  const canConfirm = qrToken.trim() !== '';
 
   const handleConfirm = () => {
     if (!canConfirm) return;
-    checkInMutation.mutate({
+    const payload: { workOrderId: number; qrToken: string; techCountConfirmed?: number } = {
       workOrderId,
       qrToken: qrToken.trim(),
-      techCountConfirmed: declaredTechCount!,
-    });
+    };
+    // Keep techCount optional here: when S2 UI is stale, backend can still read confirmed count from QR token.
+    if (techCountValid) {
+      payload.techCountConfirmed = declaredTechCount;
+    }
+    checkInMutation.mutate(payload);
   };
 
   const handleReturnToStore = () => {
@@ -107,13 +111,11 @@ export function CheckInModal({
                 placeholder="Scan QR or paste token from store..."
                 className="flex-1 min-w-0 p-3 border border-gray-300 rounded-lg"
                 autoFocus
-                disabled={!techCountValid}
               />
               <Button
                 type="button"
                 variant="secondary"
                 onClick={() => setShowScanner(true)}
-                disabled={!techCountValid}
                 title="Open camera to scan QR on store's phone"
               >
                 Scan
