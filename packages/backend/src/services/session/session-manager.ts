@@ -1,12 +1,7 @@
-/**
- * Session Manager
- * Handles session creation, validation, and timeout
- */
-
+import Redis from 'ioredis';
 import type { SessionData, SessionConfig } from './types.js';
 
-// In-memory session store (replace with Redis in production)
-const sessions = new Map<string, SessionData>();
+const redisClient = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');
 
 export class SessionManager {
   private config: SessionConfig;
@@ -15,98 +10,67 @@ export class SessionManager {
     this.config = config;
   }
 
-  /**
-   * Create a new session
-   */
-  createSession(sessionId: string, data: Omit<SessionData, 'createdAt' | 'lastActivity'>): void {
-    sessions.set(sessionId, {
+  async createSession(sessionId: string, data: Omit<SessionData, 'createdAt' | 'lastActivity'>): Promise<void> {
+    const session: SessionData = {
       ...data,
       createdAt: new Date(),
       lastActivity: new Date(),
-    });
+    };
+    const ttlSeconds = this.config.timeoutMinutes * 60;
+    await redisClient.set(
+      `session:${sessionId}`,
+      JSON.stringify(session),
+      'EX',
+      ttlSeconds
+    );
   }
 
-  /**
-   * Get session data
-   */
-  getSession(sessionId: string): SessionData | null {
-    const session = sessions.get(sessionId);
+  async getSession(sessionId: string): Promise<SessionData | null> {
+    const raw = await redisClient.get(`session:${sessionId}`);
+    if (!raw) return null;
 
-    if (!session) {
-      return null;
-    }
+    const session: SessionData = JSON.parse(raw);
+    session.lastActivity = new Date();
 
-    // Check if session expired (10 minutes of inactivity)
-    const now = new Date();
-    const inactivityMs = now.getTime() - session.lastActivity.getTime();
-    const timeoutMs = this.config.timeoutMinutes * 60 * 1000;
-
-    if (inactivityMs > timeoutMs) {
-      this.destroySession(sessionId);
-      return null;
-    }
-
-    // Update last activity
-    session.lastActivity = now;
-    sessions.set(sessionId, session);
+    const ttlSeconds = this.config.timeoutMinutes * 60;
+    await redisClient.set(
+      `session:${sessionId}`,
+      JSON.stringify(session),
+      'EX',
+      ttlSeconds
+    );
 
     return session;
   }
 
-  /**
-   * Update session data
-   */
-  updateSession(sessionId: string, updates: Partial<SessionData>): boolean {
-    const session = sessions.get(sessionId);
+  async updateSession(sessionId: string, updates: Partial<SessionData>): Promise<boolean> {
+    const raw = await redisClient.get(`session:${sessionId}`);
+    if (!raw) return false;
 
-    if (!session) {
-      return false;
-    }
+    const session: SessionData = JSON.parse(raw);
+    const updated = { ...session, ...updates, lastActivity: new Date() };
 
-    sessions.set(sessionId, {
-      ...session,
-      ...updates,
-      lastActivity: new Date(),
-    });
+    const ttlSeconds = this.config.timeoutMinutes * 60;
+    await redisClient.set(
+      `session:${sessionId}`,
+      JSON.stringify(updated),
+      'EX',
+      ttlSeconds
+    );
 
     return true;
   }
 
-  /**
-   * Destroy session
-   */
-  destroySession(sessionId: string): void {
-    sessions.delete(sessionId);
+  async destroySession(sessionId: string): Promise<void> {
+    await redisClient.del(`session:${sessionId}`);
   }
 
-  /**
-   * Get all active sessions (for debugging)
-   */
-  getActiveSessions(): number {
-    return sessions.size;
-  }
-
-  /**
-   * Clean up expired sessions (run periodically)
-   */
-  cleanupExpiredSessions(): number {
-    const now = new Date();
-    const timeoutMs = this.config.timeoutMinutes * 60 * 1000;
-    let cleaned = 0;
-
-    for (const [sessionId, session] of sessions.entries()) {
-      const inactivityMs = now.getTime() - session.lastActivity.getTime();
-      if (inactivityMs > timeoutMs) {
-        sessions.delete(sessionId);
-        cleaned++;
-      }
-    }
-
-    return cleaned;
+  async getActiveSessions(): Promise<number> {
+    const keys = await redisClient.keys('session:*');
+    return keys.length;
   }
 }
 
-// Singleton instance
 export const sessionManager = new SessionManager({
   secret: process.env.SESSION_SECRET ?? 'dev-secret',
   timeoutMinutes: parseInt(process.env.SESSION_TIMEOUT_MINUTES ?? '10', 10),

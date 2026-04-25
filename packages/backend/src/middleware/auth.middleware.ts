@@ -18,7 +18,7 @@ declare global {
 /**
  * Require authentication
  */
-export function requireAuth(req: Request, res: Response, next: NextFunction): void {
+export async function requireAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const sessionId =
     req.cookies?.cmms_session ?? (req.headers['x-session-id'] as string | undefined);
 
@@ -27,7 +27,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
     return;
   }
 
-  const session = sessionManager.getSession(sessionId);
+  const session = await sessionManager.getSession(sessionId);
 
   if (!session) {
     res.status(401).json({ error: 'Invalid or expired session' });
@@ -60,12 +60,12 @@ export function requireRole(...allowedRoles: string[]) {
 /**
  * Optional auth (attach session if present, but don't require it)
  */
-export function optionalAuth(req: Request, res: Response, next: NextFunction): void {
+export async function optionalAuth(req: Request, res: Response, next: NextFunction): Promise<void> {
   const sessionId =
     req.cookies?.cmms_session ?? (req.headers['x-session-id'] as string | undefined);
 
   if (sessionId) {
-    const session = sessionManager.getSession(sessionId);
+    const session = await sessionManager.getSession(sessionId);
     if (session) {
       req.session = session;
     }

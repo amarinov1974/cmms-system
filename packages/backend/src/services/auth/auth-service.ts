@@ -63,7 +63,7 @@ export class AuthService {
       regionName: user.region?.name,
     };
 
-    sessionManager.createSession(sessionId, sessionData);
+    await sessionManager.createSession(sessionId, sessionData);
 
     const role = String(user.role);
     return {
@@ -116,7 +116,7 @@ export class AuthService {
       servicedCompanyName: servicedCompany?.name ?? undefined,
     };
 
-    sessionManager.createSession(sessionId, sessionData);
+    await sessionManager.createSession(sessionId, sessionData);
 
     const role = String(user.role);
     return {
@@ -136,16 +136,16 @@ export class AuthService {
   /**
    * Logout - destroy session
    */
-  logout(sessionId: string): LogoutResponse {
-    sessionManager.destroySession(sessionId);
+  async logout(sessionId: string): Promise<LogoutResponse> {
+    await sessionManager.destroySession(sessionId);
     return { success: true };
   }
 
   /**
    * Validate session
    */
-  validateSession(sessionId: string): SessionData | null {
-    return sessionManager.getSession(sessionId);
+  async validateSession(sessionId: string): Promise<SessionData | null> {
+    return await sessionManager.getSession(sessionId);
   }
 }
 
