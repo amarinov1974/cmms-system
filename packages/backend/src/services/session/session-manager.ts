@@ -1,4 +1,4 @@
-import Redis from 'ioredis';
+import { Redis } from 'ioredis';
 import type { SessionData, SessionConfig } from './types.js';
 
 const redisClient = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379');

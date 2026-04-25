@@ -118,11 +118,11 @@ router.post('/demo-login', requireGate, async (req, res) => {
  * POST /api/auth/logout
  * Logout endpoint (supports cookie or x-session-id header for iOS/Safari)
  */
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   let sessionId = req.cookies?.cmms_session ?? req.headers['x-session-id'];
   if (Array.isArray(sessionId)) sessionId = sessionId[0];
   if (typeof sessionId === 'string' && sessionId.trim()) {
-    authService.logout(sessionId.trim());
+    await authService.logout(sessionId.trim());
   }
   res.clearCookie('cmms_session');
   res.json({ success: true });
@@ -132,7 +132,7 @@ router.post('/logout', (req, res) => {
  * GET /api/auth/session
  * Get current session info
  */
-router.get('/session', (req, res) => {
+router.get('/session', async (req, res) => {
   let sessionId = req.cookies?.cmms_session ?? req.headers['x-session-id'];
   if (Array.isArray(sessionId)) sessionId = sessionId[0];
   if (typeof sessionId !== 'string' || !sessionId.trim()) {
@@ -140,7 +140,7 @@ router.get('/session', (req, res) => {
     return;
   }
 
-  const session = authService.validateSession(sessionId.trim());
+  const session = await authService.validateSession(sessionId.trim());
 
   if (!session) {
     res.status(401).json({ error: 'Invalid or expired session' });
