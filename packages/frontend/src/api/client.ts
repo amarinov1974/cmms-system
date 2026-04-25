@@ -27,6 +27,8 @@ apiClient.interceptors.request.use((config) => {
   if (config.data instanceof FormData) {
     delete config.headers['Content-Type'];
   }
+  // CSRF protection header - backend validates this is present
+  config.headers['x-requested-with'] = 'XMLHttpRequest';
   if (typeof window !== 'undefined') {
     const sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
     if (sessionId) {
