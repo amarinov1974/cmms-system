@@ -60,7 +60,9 @@ router.get('/', async (req, res) => {
     const currentStatus = req.query.currentStatus as string | undefined;
     const currentOwnerType = req.query.currentOwnerType as 'INTERNAL' | 'VENDOR' | undefined;
     const urgent = req.query.urgent === 'true' ? true : req.query.urgent === 'false' ? false : undefined;
+    const companyId = req.session!.companyId;
     const workOrders = await workOrderService.listWorkOrders({
+      companyId,
       vendorCompanyId,
       currentOwnerId,
       ticketId,

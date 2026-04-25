@@ -1050,6 +1050,7 @@ export class WorkOrderService {
    * List work orders by vendor company, current owner, or store (for SM QR section)
    */
   async listWorkOrders(params: {
+    companyId?: number;
     vendorCompanyId?: number;
     currentOwnerId?: number;
     ticketId?: number;
@@ -1070,7 +1071,8 @@ export class WorkOrderService {
     if (params.vendorCompanyId != null) where.vendorCompanyId = params.vendorCompanyId;
     if (params.currentOwnerId != null) where.currentOwnerId = params.currentOwnerId;
     if (params.ticketId != null) where.ticketId = params.ticketId;
-    const ticketWhere: { storeId?: number; store?: { regionId: number }; urgent?: boolean } = {};
+    const ticketWhere: { companyId?: number; storeId?: number; store?: { regionId: number }; urgent?: boolean } = {};
+    if (params.companyId != null) ticketWhere.companyId = params.companyId;
     if (params.storeId != null) ticketWhere.storeId = params.storeId;
     if (params.regionId != null) ticketWhere.store = { regionId: params.regionId };
     if (params.urgent != null) ticketWhere.urgent = params.urgent;

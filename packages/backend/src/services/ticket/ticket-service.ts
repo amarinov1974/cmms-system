@@ -908,8 +908,9 @@ export class TicketService {
   /**
    * List tickets with filters
    */
-  async listTickets(query: ListTicketsQuery): Promise<TicketResponse[]> {
+  async listTickets(query: ListTicketsQuery & { companyId?: number }): Promise<TicketResponse[]> {
     const where: Prisma.TicketWhereInput = {};
+    if (query.companyId != null) where.companyId = query.companyId;
     if (query.status != null) where.currentStatus = toPrismaStatus(query.status);
     if (query.urgent != null) where.urgent = query.urgent;
     if (query.storeId != null) where.storeId = query.storeId;

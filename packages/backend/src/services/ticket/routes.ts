@@ -222,6 +222,7 @@ router.get('/:id', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const tickets = await ticketService.listTickets({
+      companyId: req.session!.companyId,
       status: req.query.status as ListTicketsQuery['status'],
       urgent: req.query.urgent === 'true' ? true : req.query.urgent === 'false' ? false : undefined,
       storeId: req.query.storeId ? parseInt(req.query.storeId as string, 10) : undefined,
