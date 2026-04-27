@@ -7,6 +7,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import * as Sentry from '@sentry/node';
 import authRoutes from './services/auth/routes.js';
 import ticketRoutes from './services/ticket/routes.js';
 import qrRoutes from './services/qr/routes.js';
@@ -83,6 +84,7 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not found' });
 });
 
+app.use(Sentry.expressErrorHandler() as unknown as express.ErrorRequestHandler);
 app.use(errorMiddleware);
 
 export { app };

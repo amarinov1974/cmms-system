@@ -1,3 +1,5 @@
+import './instrument.js';
+
 /**
  * Server Entry Point
  */
