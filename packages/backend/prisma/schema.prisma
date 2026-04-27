@@ -96,6 +96,7 @@ enum InternalRole {
 model InternalUser {
   id        Int          @id @default(autoincrement())
   name      String       @db.VarChar(255)
+  email     String?      @db.VarChar(255)
   role      InternalRole
   companyId Int          @map("company_id")
   regionId  Int?         @map("region_id")
@@ -129,6 +130,7 @@ enum VendorRole {
 model VendorUser {
   id               Int        @id @default(autoincrement())
   name             String     @db.VarChar(255)
+  email            String?    @db.VarChar(255)
   role             VendorRole
   vendorCompanyId  Int        @map("vendor_company_id")
   active           Boolean    @default(true)
