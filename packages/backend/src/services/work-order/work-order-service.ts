@@ -10,6 +10,7 @@ import { WorkOrderStatus } from '../../types/statuses.js';
 import type { WorkOrderStatusType } from '../../types/statuses.js';
 import type { Role } from '../../types/roles.js';
 import { qrService } from '../qr/qr-service.js';
+import { notifyNewOwner } from '../email/email-service.js';
 import type {
   AssignTechnicianRequest,
   CheckInRequest,
@@ -130,6 +131,13 @@ export class WorkOrderService {
         actorId: userId,
         comment: `Assigned to ${updated.assignedTechnician?.name ?? 'technician'}, ETA: ${request.eta.toISOString()}`,
       },
+    });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: request.technicianUserId,
+      ownerType: 'VENDOR',
+      context: 'Radni nalog vam je dodijeljen kao tehničar',
     });
 
     return this.mapWorkOrderToResponse(updated);
@@ -527,6 +535,13 @@ export class WorkOrderService {
         actorId: userId,
       },
     });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: amm.id,
+      ownerType: 'INTERNAL',
+      context: 'Vendor je dostavio prijedlog troška — čeka vaše odobrenje',
+    });
 
     return this.mapWorkOrderToDetailResponse(updated);
   }
@@ -657,6 +672,13 @@ export class WorkOrderService {
         actorId: userId,
         comment: request.comment,
       },
+    });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: s3.id,
+      ownerType: 'VENDOR',
+      context: 'Zatražena je revizija prijedloga troška',
     });
 
     return this.mapWorkOrderToResponse(updated);
@@ -791,6 +813,13 @@ export class WorkOrderService {
         comment: request.comment,
       },
     });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: amm.id,
+      ownerType: 'INTERNAL',
+      context: 'Radni nalog je vraćen na pojašnjenje',
+    });
 
     return this.mapWorkOrderToResponse(updated);
   }
@@ -871,6 +900,13 @@ export class WorkOrderService {
         comment: request.comment ?? undefined,
       },
     });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: s1.id,
+      ownerType: 'VENDOR',
+      context: 'Radni nalog je ponovo dodijeljen vama',
+    });
 
     return this.mapWorkOrderToResponse(updated);
   }
@@ -945,6 +981,13 @@ export class WorkOrderService {
         actorId: userId,
         comment: request.comment ?? 'Returned to store to correct number of technicians',
       },
+    });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: sm.id,
+      ownerType: 'INTERNAL',
+      context: 'Potrebna je ispravka broja tehničara',
     });
 
     return this.mapWorkOrderToResponse(updated);
@@ -1021,6 +1064,13 @@ export class WorkOrderService {
         actorId: userId,
         comment: request.reason,
       },
+    });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: wo.id,
+      newOwnerId: amm.id,
+      ownerType: 'INTERNAL',
+      context: 'Radni nalog je odbijen od strane vendora',
     });
 
     return this.mapWorkOrderToResponse(updated);

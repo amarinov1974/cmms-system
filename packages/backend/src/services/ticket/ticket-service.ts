@@ -32,6 +32,7 @@ import type {
 import { approvalChainService } from '../approval-chain/approval-chain-service.js';
 import type { InternalRole } from '@prisma/client';
 import { WorkOrderStatus as PrismaWorkOrderStatus } from '@prisma/client';
+import { notifyNewOwner } from '../email/email-service.js';
 
 /** Prisma stores enum keys (DRAFT); state machine uses display values (Draft). */
 function toOurStatus(prismaStatus: string): TicketStatusType {
@@ -266,6 +267,13 @@ export class TicketService {
         comment: ticket.urgent ? 'Routed to AMM (urgent)' : 'Routed to AM (non-urgent)',
       },
     });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: newOwnerId,
+      ownerType: 'INTERNAL',
+      context: 'Tiket je podnesen i dodijeljen vama na pregled',
+    });
 
     return this.mapTicketToResponse(updated);
   }
@@ -393,6 +401,13 @@ export class TicketService {
         actorId: userId,
         comment,
       },
+    });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: assignToUserId,
+      ownerType: 'INTERNAL',
+      context: 'Zatraženo pojašnjenje — tiket je dodijeljen vama',
     });
 
     return this.mapTicketToResponse(updated);
@@ -531,6 +546,13 @@ export class TicketService {
         comment: request.comment,
       },
     });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: newOwner.id,
+      ownerType: 'INTERNAL',
+      context: 'Ažurirani tiket je dodijeljen vama na pregled',
+    });
 
     return this.mapTicketToResponse(updated);
   }
@@ -610,6 +632,13 @@ export class TicketService {
         actorId: userId,
         comment: 'Approved for cost estimation',
       },
+    });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: amm.id,
+      ownerType: 'INTERNAL',
+      context: 'Tiket je odobren za procjenu troška',
     });
 
     return this.mapTicketToResponse(updated);
@@ -1027,6 +1056,13 @@ export class TicketService {
         comment: `Cost estimation: €${request.estimatedAmount}`,
       },
     });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: nextApprover.userId,
+      ownerType: 'INTERNAL',
+      context: 'Procjena troška čeka vaše odobrenje',
+    });
 
     return {
       ticketId: ticket.id,
@@ -1175,6 +1211,13 @@ export class TicketService {
         comment: request.comment ?? `${role} approved`,
       },
     });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: newOwnerId!,
+      ownerType: 'INTERNAL',
+      context: 'Procjena troška je odobrena',
+    });
 
     return this.mapTicketToResponse(updated);
   }
@@ -1261,6 +1304,13 @@ export class TicketService {
         actorId: userId,
         comment: request.comment,
       },
+    });
+    await notifyNewOwner({
+      entityType: 'TICKET',
+      entityId: ticket.id,
+      newOwnerId: amm.id,
+      ownerType: 'INTERNAL',
+      context: 'Procjena troška je vraćena na reviziju',
     });
 
     return this.mapTicketToResponse(updated);
@@ -1355,6 +1405,13 @@ export class TicketService {
       data: {
         currentStatus: toPrismaStatus(TicketStatus.WORK_ORDER_IN_PROGRESS),
       },
+    });
+    await notifyNewOwner({
+      entityType: 'WORK_ORDER',
+      entityId: workOrder.id,
+      newOwnerId: s1.id,
+      ownerType: 'VENDOR',
+      context: 'Novi radni nalog je kreiran i dodijeljen vama',
     });
 
     return { workOrderId: workOrder.id };
