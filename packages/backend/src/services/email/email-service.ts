@@ -7,6 +7,7 @@ import { prisma } from '../../config/database.js';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const FROM_EMAIL = 'onboarding@resend.dev';
+const APP_URL = process.env.FRONTEND_URL ?? 'http://localhost:5173';
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
@@ -52,12 +53,19 @@ export async function notifyNewOwner(params: {
   if (!email) return;
 
   const entityLabel = entityType === 'TICKET' ? 'Tiket' : 'Radni nalog';
+  const entityPath = entityType === 'TICKET' ? 'tickets' : 'work-orders';
+  const entityUrl = `${APP_URL}/${entityPath}/${entityId}`;
   const subject = `[Maintrix] ${entityLabel} #${entityId} — dodijeljen vam je`;
   const html = `
     <h2>${entityLabel} #${entityId} je dodijeljen vama</h2>
     ${name ? `<p>Pozdrav, <strong>${name}</strong>!</p>` : ''}
     ${context ? `<p><strong>Akcija:</strong> ${context}</p>` : ''}
-    <p>Prijavite se u Maintrix sustav za više detalja i poduzimanje sljedećih koraka.</p>
+    <p>
+      <a href="${entityUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-top: 16px;">
+        Otvori ${entityLabel} #${entityId}
+      </a>
+    </p>
+    <p>Ili kopirajte link: <a href="${entityUrl}">${entityUrl}</a></p>
     <hr/>
     <p style="color: #666; font-size: 12px;">Ovu poruku ste primili jer ste novi vlasnik ovog zadatka u Maintrix sustavu.</p>
   `;
