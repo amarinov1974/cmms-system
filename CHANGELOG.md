@@ -1,5 +1,65 @@
 # CMMS System — Changelog
 
+## Session: 2026-04-27 — Phase 2 Fixes & Email Notifications
+
+### Pregled
+Popravci gate autentikacije, sigurnosni dodaci i implementacija email notifikacija.
+
+### Promjene
+
+#### 1. Gate auth popravak
+- Gate token se sprema u localStorage umjesto cookija
+- Radi na svim browserima uključujući Chrome incognito i Safari
+- x-gate-token header se šalje na svaki request
+
+#### 2. CSRF middleware na backendu
+- Validacija x-requested-with headera na svim POST/PUT/DELETE requestima
+- Skip za QR endpoint i gate-login
+
+#### 3. Attachment MIME type validacija
+- Whitelist: JPG, PNG, GIF, WebP, PDF, Word, Excel
+
+#### 4. Sentry error tracking
+- @sentry/node integriran u backend
+- SENTRY_DSN environment varijabla dodana na Railway
+
+#### 5. Email notifikacije
+- Resend biblioteka integrirana
+- notifyNewOwner() šalje email svakom novom vlasniku tiketa ili radnog naloga
+- Email sadrži ime korisnika, akciju i link na dashboard
+- Email polje dodano na InternalUser i VendorUser (Prisma migracija)
+- Pokriva sve tranzicije u ticket-service.ts i work-order-service.ts
+
+#### 6. Seed skripta
+- Uklonjena automatska kreacija tiketa
+- railway.json popravljen — seed se više ne pokreće automatski pri deployu
+- Seed treba pokrenuti ručno: npm run db:seed
+
+#### 7. Maintrix rebranding
+- GitHub repo: cmms-system → maintrix
+- Lokalni folder: cmms-system → maintrix
+- Railway projekt: cooperative-cooperation → Maintrix
+- package.json: @cmms → @maintrix
+
+### Novi paketi
+- @sentry/node
+- resend
+
+### Environment varijable na Railway
+- SENTRY_DSN
+- RESEND_API_KEY
+- GATE_USERNAME, GATE_PASSWORD
+
+### Poznati TODO (sljedeća sesija)
+- [ ] Rate limiter trust proxy fix (X-Forwarded-For warning u logovima)
+- [ ] Pravi login sustav po korisniku (Better Auth) — kad dođe prvi klijent
+- [ ] Deep link nakon logina — kad bude pravi login
+- [ ] Custom domena (kupiti i postaviti)
+- [ ] Cookie hardening kad se postavi custom domena (sameSite: strict)
+- [ ] Dizajn poboljšanja
+- [ ] Obrisati stare brancheve na GitHubu (phase-1-security, phase-2-fixes)
+- [ ] Ažurirati CHANGELOG.md u Maintrix Claude projektu
+
 ## Session: 2026-04-25 — Phase 1 Security Sprint
 
 ### Pregled
