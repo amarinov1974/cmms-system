@@ -17,6 +17,7 @@ import assetRoutes from './services/asset/routes.js';
 import preventiveMaintenanceRoutes from './services/preventive-maintenance/routes.js';
 import { errorMiddleware } from './middleware/error.middleware.js';
 import { apiKeyMiddleware } from './middleware/api-key.middleware.js';
+import { csrfMiddleware } from './middleware/csrf.middleware.js';
 import { prisma } from './config/database.js';
 
 const authLimiter = rateLimit({
@@ -49,6 +50,7 @@ app.get('/api/health', (_req, res) => {
 
 // API key required for all routes below
 app.use(apiKeyMiddleware);
+app.use(csrfMiddleware);
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tickets', ticketRoutes);
@@ -84,4 +86,5 @@ app.use((_req, res) => {
 app.use(errorMiddleware);
 
 export { app };
+
 
