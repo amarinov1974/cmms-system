@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI, type User } from '../api/auth';
-import { apiClient, SESSION_STORAGE_KEY } from '../api/client';
+import { SESSION_STORAGE_KEY } from '../api/client';
 
 const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'C3', 'BOD'];
 
@@ -160,28 +160,6 @@ export function EntryScreen() {
     loginMutation.mutate({ userType, userId: selectedUserId });
   };
 
-  const deleteAllMutation = useMutation({
-    mutationFn: async () => {
-      const { data } = await apiClient.post<{
-        success: boolean;
-        deleted: { workOrders: number; tickets: number };
-      }>('/demo/delete-all-tickets');
-      return data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['tickets'] });
-      queryClient.invalidateQueries({ queryKey: ['work-orders'] });
-      alert(
-        `Deleted ${data.deleted.tickets} ticket(s) and ${data.deleted.workOrders} work order(s).`
-      );
-    },
-  });
-
-  const handleDeleteAllTickets = () => {
-    if (!window.confirm('Delete ALL tickets and work orders? This cannot be undone.')) return;
-    deleteAllMutation.mutate();
-  };
-
   const handleGateLogout = async () => {
     await authAPI.gateLogout();
     refetchGate();
@@ -252,19 +230,6 @@ export function EntryScreen() {
       )}
       {showDemoForm && (
       <>
-      <button
-        type="button"
-        onClick={handleDeleteAllTickets}
-        disabled={deleteAllMutation.isPending}
-        className="fixed top-4 right-4 z-10 py-2 px-4 rounded-lg border-2 border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm"
-      >
-        {deleteAllMutation.isPending ? 'Deleting...' : 'Delete all tickets'}
-      </button>
-      {deleteAllMutation.isError && (
-        <div className="fixed top-14 right-4 z-10 max-w-xs text-red-600 text-sm bg-white border border-red-200 rounded-lg p-2 shadow">
-          {(deleteAllMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to delete'}
-        </div>
-      )}
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full">
         <div className="flex items-center justify-center mb-4">
           <img

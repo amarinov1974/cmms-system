@@ -7,7 +7,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { authAPI } from '../api/auth';
-import { apiClient, SESSION_STORAGE_KEY } from '../api/client';
+import { SESSION_STORAGE_KEY } from '../api/client';
 const INTERNAL_ROLE_ORDER = ['SM', 'AM', 'AMM', 'D', 'C2', 'C3', 'BOD'];
 function sortInternalUsers(users) {
     return [...users].sort((a, b) => {
@@ -138,22 +138,6 @@ export function EntryScreen() {
             return;
         loginMutation.mutate({ userType, userId: selectedUserId });
     };
-    const deleteAllMutation = useMutation({
-        mutationFn: async () => {
-            const { data } = await apiClient.post('/demo/delete-all-tickets');
-            return data;
-        },
-        onSuccess: (data) => {
-            queryClient.invalidateQueries({ queryKey: ['tickets'] });
-            queryClient.invalidateQueries({ queryKey: ['work-orders'] });
-            alert(`Deleted ${data.deleted.tickets} ticket(s) and ${data.deleted.workOrders} work order(s).`);
-        },
-    });
-    const handleDeleteAllTickets = () => {
-        if (!window.confirm('Delete ALL tickets and work orders? This cannot be undone.'))
-            return;
-        deleteAllMutation.mutate();
-    };
     const handleGateLogout = async () => {
         await authAPI.gateLogout();
         refetchGate();
@@ -161,7 +145,7 @@ export function EntryScreen() {
     return (_jsxs("div", { className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4 relative", children: [gateLoading && (_jsx("div", { className: "absolute inset-0 bg-white/80 flex items-center justify-center z-20", children: _jsx("p", { className: "text-gray-600", children: "Loading\u2026" }) })), showGateForm && (_jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("div", { className: "flex items-center justify-center mb-4", children: _jsx("img", { src: "/ntl-logo.png", alt: "NTL logo", className: "h-16 w-auto object-contain" }) }), _jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-6", children: "Sign in to continue" }), _jsxs("form", { onSubmit: (e) => {
                             e.preventDefault();
                             gateLoginMutation.mutate();
-                        }, children: [_jsxs("div", { className: "mb-4", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Username" }), _jsx("input", { type: "text", value: gateUsername, onChange: (e) => setGateUsername(e.target.value), required: true, autoComplete: "username", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Password" }), _jsx("input", { type: "password", value: gatePassword, onChange: (e) => setGatePassword(e.target.value), required: true, autoComplete: "current-password", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), gateError && (_jsx("p", { className: "mb-4 text-red-600 text-sm", children: gateError })), _jsx("button", { type: "submit", disabled: gateLoginMutation.isPending, className: "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition", children: gateLoginMutation.isPending ? 'Signing in...' : 'Sign in' })] })] })), showDemoForm && (_jsxs(_Fragment, { children: [_jsx("button", { type: "button", onClick: handleDeleteAllTickets, disabled: deleteAllMutation.isPending, className: "fixed top-4 right-4 z-10 py-2 px-4 rounded-lg border-2 border-red-200 text-red-700 bg-red-50 font-medium hover:bg-red-100 disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm", children: deleteAllMutation.isPending ? 'Deleting...' : 'Delete all tickets' }), deleteAllMutation.isError && (_jsx("div", { className: "fixed top-14 right-4 z-10 max-w-xs text-red-600 text-sm bg-white border border-red-200 rounded-lg p-2 shadow", children: deleteAllMutation.error?.response?.data?.error ?? 'Failed to delete' })), _jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("div", { className: "flex items-center justify-center mb-4", children: _jsx("img", { src: "/ntl-logo.png", alt: "NTL logo", className: "h-16 w-auto object-contain" }) }), _jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-8", children: "Demo Login - Select User" }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "User Type" }), _jsxs("div", { className: "flex gap-4", children: [_jsx("button", { type: "button", onClick: () => {
+                        }, children: [_jsxs("div", { className: "mb-4", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Username" }), _jsx("input", { type: "text", value: gateUsername, onChange: (e) => setGateUsername(e.target.value), required: true, autoComplete: "username", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "Password" }), _jsx("input", { type: "password", value: gatePassword, onChange: (e) => setGatePassword(e.target.value), required: true, autoComplete: "current-password", className: "w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" })] }), gateError && (_jsx("p", { className: "mb-4 text-red-600 text-sm", children: gateError })), _jsx("button", { type: "submit", disabled: gateLoginMutation.isPending, className: "w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition", children: gateLoginMutation.isPending ? 'Signing in...' : 'Sign in' })] })] })), showDemoForm && (_jsxs(_Fragment, { children: [_jsxs("div", { className: "bg-white rounded-lg shadow-xl p-8 max-w-md w-full", children: [_jsx("div", { className: "flex items-center justify-center mb-4", children: _jsx("img", { src: "/ntl-logo.png", alt: "NTL logo", className: "h-16 w-auto object-contain" }) }), _jsx("h1", { className: "text-3xl font-bold text-gray-900 mb-2", children: "CMMS System" }), _jsx("p", { className: "text-gray-600 mb-8", children: "Demo Login - Select User" }), _jsxs("div", { className: "mb-6", children: [_jsx("label", { className: "block text-sm font-medium text-gray-700 mb-2", children: "User Type" }), _jsxs("div", { className: "flex gap-4", children: [_jsx("button", { type: "button", onClick: () => {
                                                     setUserType('INTERNAL');
                                                     setSelectedUserId(null);
                                                 }, className: `flex-1 py-2 px-4 rounded-lg border-2 transition ${userType === 'INTERNAL'
