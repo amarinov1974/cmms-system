@@ -26,6 +26,8 @@ function createGateToken(): string {
 const router = Router();
 
 function getGateToken(req: Request): string | undefined {
+  const fromHeader = req.headers['x-gate-token'];
+  if (typeof fromHeader === 'string' && fromHeader) return fromHeader;
   const v = req.cookies?.[GATE_COOKIE];
   if (typeof v === 'string') return v;
   return undefined;
@@ -69,7 +71,7 @@ router.post('/gate-login', (req, res) => {
   }
   const token = createGateToken();
   res.cookie(GATE_COOKIE, token, getGateCookieOpts());
-  res.json({ success: true });
+  res.json({ success: true, token });
 });
 
 /**

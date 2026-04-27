@@ -5,6 +5,7 @@
  */
 import axios from 'axios';
 export const SESSION_STORAGE_KEY = 'cmms_session';
+export const GATE_TOKEN_KEY = 'cmms_gate_token';
 // Use relative /api in dev so Vite proxy works; avoids CORS and wrong host/port
 const apiKey = import.meta.env.VITE_API_KEY;
 export const apiClient = axios.create({
@@ -29,6 +30,10 @@ apiClient.interceptors.request.use((config) => {
         const sessionId = localStorage.getItem(SESSION_STORAGE_KEY);
         if (sessionId) {
             config.headers['x-session-id'] = sessionId;
+        }
+        const gateToken = localStorage.getItem(GATE_TOKEN_KEY);
+        if (gateToken) {
+            config.headers['x-gate-token'] = gateToken;
         }
         // Ensure x-api-key is sent on every request (in case headers weren't set at create time)
         const key = import.meta.env.VITE_API_KEY;

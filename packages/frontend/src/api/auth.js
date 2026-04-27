@@ -1,7 +1,7 @@
 /**
  * Auth API
  */
-import { apiClient, SESSION_STORAGE_KEY } from './client';
+import { apiClient, SESSION_STORAGE_KEY, GATE_TOKEN_KEY } from './client';
 export const authAPI = {
     getGateStatus: async () => {
         const { data } = await apiClient.get('/auth/gate-status');
@@ -12,10 +12,16 @@ export const authAPI = {
             username,
             password,
         });
+        if (data.success && data.token && typeof window !== 'undefined') {
+            localStorage.setItem(GATE_TOKEN_KEY, data.token);
+        }
         return data;
     },
     gateLogout: async () => {
         await apiClient.post('/auth/gate-logout');
+        if (typeof window !== 'undefined') {
+            localStorage.removeItem(GATE_TOKEN_KEY);
+        }
     },
     demoLogin: async (request) => {
         const { data } = await apiClient.post('/auth/demo-login', request);

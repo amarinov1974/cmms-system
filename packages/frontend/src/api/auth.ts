@@ -2,7 +2,7 @@
  * Auth API
  */
 
-import { apiClient, SESSION_STORAGE_KEY } from './client';
+import { apiClient, SESSION_STORAGE_KEY, GATE_TOKEN_KEY } from './client';
 
 export interface DemoLoginRequest {
   userType: 'INTERNAL' | 'VENDOR';
@@ -58,15 +58,21 @@ export const authAPI = {
   },
 
   gateLogin: async (username: string, password: string): Promise<{ success: boolean }> => {
-    const { data } = await apiClient.post<{ success: boolean }>('/auth/gate-login', {
+    const { data } = await apiClient.post<{ success: boolean; token?: string }>('/auth/gate-login', {
       username,
       password,
     });
+    if (data.success && data.token && typeof window !== 'undefined') {
+      localStorage.setItem(GATE_TOKEN_KEY, data.token);
+    }
     return data;
   },
 
   gateLogout: async (): Promise<void> => {
     await apiClient.post('/auth/gate-logout');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(GATE_TOKEN_KEY);
+    }
   },
 
   demoLogin: async (request: DemoLoginRequest): Promise<DemoLoginResponse> => {
